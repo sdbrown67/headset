@@ -1,18 +1,63 @@
+<!DOCTYPE html>
 <html>
   <head>
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-  </head>
-  <body>
-    <a-scene>
-      <a-entity id="rig">
-        <a-camera position="0 1.6 0"></a-camera>
+    <meta charset="utf-8" />
+    <title>Quest 3 GLB Viewer</title>
 
-        <a-entity
-          gltf-model="url(model.glb)"
-          position="0 .8 -.5"
-          scale=".1 .1 .1">
-        </a-entity>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.0.0/dist/aframe-extras.min.js"></script>
+
+    <script>
+      // Fly movement using right controller thumbstick (Y axis = up/down)
+      AFRAME.registerComponent("quest-fly", {
+        init: function () {
+          this.yAxis = 0;
+          this.speed = 0.05;
+
+          this.el.addEventListener("thumbstickmoved", (e) => {
+            // vertical movement
+            this.yAxis = e.detail.y || 0;
+          });
+        },
+
+        tick: function () {
+          const rig = this.el;
+          rig.object3D.position.y += this.yAxis * this.speed;
+        },
+      });
+    </script>
+  </head>
+
+  <body>
+    <a-scene
+      webxr="optionalFeatures: local-floor, bounded-floor"
+      vr-mode-ui="enabled: true"
+      background="color: #202020"
+    >
+      <!-- Lighting -->
+      <a-light type="ambient" intensity="1"></a-light>
+      <a-light type="directional" position="2 4 2" intensity="1"></a-light>
+
+      <!-- PLAYER / RIG -->
+      <a-entity id="rig" movement-controls="speed: 0.15" quest-fly>
+        
+        <!-- Camera at head height -->
+        <a-camera position="0 1.6 0" look-controls wasd-controls="fly: true"></a-camera>
+
+        <!-- Quest controllers -->
+        <a-entity laser-controls="hand: left"></a-entity>
+        <a-entity laser-controls="hand: right"></a-entity>
+
       </a-entity>
+
+      <!-- MODEL (fixed in world space) -->
+      <a-entity
+        gltf-model="url(model.glb)"
+        position="0 1.6 -1"
+        scale="1 1 1"
+        rotation="0 0 0"
+      ></a-entity>
+
     </a-scene>
   </body>
 </html>
