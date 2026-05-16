@@ -5,24 +5,53 @@
     <title>Quest 3 GLB Viewer</title>
 
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.0.0/dist/aframe-extras.min.js"></script>
 
     <script>
-      // Fly movement using right controller thumbstick (Y axis = up/down)
-      AFRAME.registerComponent("quest-fly", {
+      // Simple fly locomotion using BOTH thumbsticks
+      AFRAME.registerComponent("quest-locomotion", {
         init: function () {
-          this.yAxis = 0;
+          this.moveX = 0;
+          this.moveY = 0;
+          this.moveZ = 0;
           this.speed = 0.05;
 
-          this.el.addEventListener("thumbstickmoved", (e) => {
-            // vertical movement
-            this.yAxis = e.detail.y || 0;
+          const el = this.el;
+
+          el.addEventListener("thumbstickmoved", (e) => {
+            // left/right = strafe
+            this.moveX = e.detail.x || 0;
+
+            // forward/back = move in camera direction
+            this.moveZ = e.detail.y || 0;
+          });
+
+          // right controller for vertical movement
+          el.addEventListener("thumbstickmoved", (e) => {
+            this.moveY = e.detail.y || 0;
           });
         },
 
         tick: function () {
           const rig = this.el;
-          rig.object3D.position.y += this.yAxis * this.speed;
+
+          // Get camera direction
+          const cam = rig.querySelector("[camera]");
+          if (!cam) return;
+
+          const dir = new THREE.Vector3();
+          cam.object3D.getWorldDirection(dir);
+
+          const right = new THREE.Vector3();
+          right.crossVectors(dir, new THREE.Vector3(0, 1, 0));
+
+          // move forward/back
+          rig.object3D.position.addScaledVector(dir, -this.moveZ * this.speed);
+
+          // strafe
+          rig.object3D.position.addScaledVector(right, this.moveX * this.speed);
+
+          // up/down (world Y)
+          rig.object3D.position.y += this.moveY * this.speed * 0.5;
         },
       });
     </script>
@@ -32,30 +61,29 @@
     <a-scene
       webxr="optionalFeatures: local-floor, bounded-floor"
       vr-mode-ui="enabled: true"
-      background="color: #202020"
+      background="color: #111"
     >
-      <!-- Lighting -->
+      <!-- LIGHTING -->
       <a-light type="ambient" intensity="1"></a-light>
       <a-light type="directional" position="2 4 2" intensity="1"></a-light>
 
-      <!-- PLAYER / RIG -->
-      <a-entity id="rig" movement-controls="speed: 0.15" quest-fly>
+      <!-- RIG -->
+      <a-entity id="rig" quest-locomotion>
         
-        <!-- Camera at head height -->
-        <a-camera position="0 1.6 0" look-controls wasd-controls="fly: true"></a-camera>
+        <!-- CAMERA -->
+        <a-camera position="0 1.6 0" look-controls></a-camera>
 
-        <!-- Quest controllers -->
+        <!-- QUEST CONTROLLERS -->
         <a-entity laser-controls="hand: left"></a-entity>
         <a-entity laser-controls="hand: right"></a-entity>
 
       </a-entity>
 
-      <!-- MODEL (fixed in world space) -->
+      <!-- MODEL IN WORLD SPACE -->
       <a-entity
         gltf-model="url(model.glb)"
         position="0 1.6 -1"
         scale="1 1 1"
-        rotation="0 0 0"
       ></a-entity>
 
     </a-scene>
