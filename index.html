@@ -2,56 +2,41 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Quest 3 GLB Viewer</title>
+    <title>Quest 3 Passthrough GLB Viewer</title>
 
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 
     <script>
-      // Simple fly locomotion using BOTH thumbsticks
-      AFRAME.registerComponent("quest-locomotion", {
+      // Place model where controller points (simple MR placement)
+      AFRAME.registerComponent("place-on-trigger", {
         init: function () {
-          this.moveX = 0;
-          this.moveY = 0;
-          this.moveZ = 0;
-          this.speed = 0.05;
+          this.raycaster = new THREE.Raycaster();
+          this.tempMatrix = new THREE.Matrix4();
 
-          const el = this.el;
+          this.el.addEventListener("triggerdown", (e) => {
+            const controller = e.target;
 
-          el.addEventListener("thumbstickmoved", (e) => {
-            // left/right = strafe
-            this.moveX = e.detail.x || 0;
+            this.tempMatrix.identity().extractRotation(controller.object3D.matrixWorld);
 
-            // forward/back = move in camera direction
-            this.moveZ = e.detail.y || 0;
+            const origin = new THREE.Vector3();
+            origin.setFromMatrixPosition(controller.object3D.matrixWorld);
+
+            const direction = new THREE.Vector3(0, 0, -1);
+            direction.applyMatrix4(this.tempMatrix);
+
+            this.raycaster.set(origin, direction);
+
+            // pretend floor plane at y = 0 (simple MR ground)
+            const t = -origin.y / direction.y;
+            const hitPoint = origin.clone().add(direction.multiplyScalar(t));
+
+            const model = document.querySelector("#model");
+            model.setAttribute("position", {
+              x: hitPoint.x,
+              y: 0,
+              z: hitPoint.z,
+            });
           });
-
-          // right controller for vertical movement
-          el.addEventListener("thumbstickmoved", (e) => {
-            this.moveY = e.detail.y || 0;
-          });
-        },
-
-        tick: function () {
-          const rig = this.el;
-
-          // Get camera direction
-          const cam = rig.querySelector("[camera]");
-          if (!cam) return;
-
-          const dir = new THREE.Vector3();
-          cam.object3D.getWorldDirection(dir);
-
-          const right = new THREE.Vector3();
-          right.crossVectors(dir, new THREE.Vector3(0, 1, 0));
-
-          // move forward/back
-          rig.object3D.position.addScaledVector(dir, -this.moveZ * this.speed);
-
-          // strafe
-          rig.object3D.position.addScaledVector(right, this.moveX * this.speed);
-
-          // up/down (world Y)
-          rig.object3D.position.y += this.moveY * this.speed * 0.5;
         },
       });
     </script>
@@ -59,31 +44,33 @@
 
   <body>
     <a-scene
-      webxr="optionalFeatures: local-floor, bounded-floor"
+      webxr="requiredFeatures: local-floor;
+             optionalFeatures: hit-test, dom-overlay"
+      renderer="alpha: true; colorManagement: true"
+      background="transparent: true"
       vr-mode-ui="enabled: true"
-      background="color: #111"
     >
+
       <!-- LIGHTING -->
       <a-light type="ambient" intensity="1"></a-light>
-      <a-light type="directional" position="2 4 2" intensity="1"></a-light>
+      <a-light type="directional" position="2 4 2"></a-light>
 
-      <!-- RIG -->
-      <a-entity id="rig" quest-locomotion>
-        
-        <!-- CAMERA -->
-        <a-camera position="0 1.6 0" look-controls></a-camera>
+      <!-- CAMERA / RIG -->
+      <a-entity id="rig">
+        <a-camera position="0 1.6 0"></a-camera>
 
-        <!-- QUEST CONTROLLERS -->
+        <!-- CONTROLLERS -->
         <a-entity laser-controls="hand: left"></a-entity>
-        <a-entity laser-controls="hand: right"></a-entity>
-
+        <a-entity laser-controls="hand: right"
+                  place-on-trigger></a-entity>
       </a-entity>
 
-      <!-- MODEL IN WORLD SPACE -->
+      <!-- GLB MODEL -->
       <a-entity
+        id="model"
         gltf-model="url(model.glb)"
-        position="0 1.6 -1"
         scale="1 1 1"
+        position="0 0 -1"
       ></a-entity>
 
     </a-scene>
