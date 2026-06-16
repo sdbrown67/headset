@@ -74,30 +74,28 @@ AFRAME.registerComponent("quest-movement", {
     this.rig.object3D.rotation.y = THREE.MathUtils.degToRad(this.rigYaw);
 
     // -------- HEAD-RELATIVE MOVEMENT --------
-    // Get the headset's current world yaw so movement follows
-    // where the player is actually looking, not just body facing.
-    // camera.object3D.getWorldQuaternion gives us the full headset
-    // orientation including both the rig turn and head tracking.
-    const camQuat = new THREE.Quaternion();
-    this.camera.object3D.getWorldQuaternion(camQuat);
+    // In WebXR + A-Frame, the actual headset pose is applied to the
+    // camera's internal Three.js object. We read it via the scene's
+    // active camera rather than the a-camera entity, which ensures
+    // we get the true physical head orientation including XR tracking.
+    const xrCamera = this.el.sceneEl.renderer.xr.getCamera();
+    const camQuat  = xrCamera
+      ? xrCamera.quaternion
+      : (this.camera.object3D.getWorldQuaternion(new THREE.Quaternion()), this.camera.object3D.quaternion);
 
-    // Extract just the yaw component from the headset quaternion
-    // by projecting onto the Y axis and re-normalising.
-    const headForward = new THREE.Vector3(0, 0, -1)
-      .applyQuaternion(camQuat);
-
-    // Flatten to horizontal plane
+    // Project headset forward direction onto the horizontal plane
+    const headForward = new THREE.Vector3(0, 0, -1).applyQuaternion(camQuat);
     headForward.y = 0;
     headForward.normalize();
 
-    // Right vector is 90° clockwise from forward
-    const headRight = new THREE.Vector3(
-      headForward.z, 0, -headForward.x
-    );
+    // Right vector is 90° clockwise from forward on the XZ plane
+    const headRight = new THREE.Vector3(headForward.z, 0, -headForward.x);
 
     const pos = this.rig.object3D.position;
-    pos.x += (headForward.x * -moveZ + headRight.x * moveX) * this.moveSpeed;
-    pos.z += (headForward.z * -moveZ + headRight.z * moveX) * this.moveSpeed;
+    // Stick forward = negative moveZ, stick back = positive moveZ.
+    // Negate so forward stick = move in headForward direction.
+    pos.x += (-headForward.x * moveZ + headRight.x * moveX) * this.moveSpeed;
+    pos.z += (-headForward.z * moveZ + headRight.z * moveX) * this.moveSpeed;
   }
 });
 
