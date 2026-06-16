@@ -74,28 +74,25 @@ AFRAME.registerComponent("quest-movement", {
     this.rig.object3D.rotation.y = THREE.MathUtils.degToRad(this.rigYaw);
 
     // -------- HEAD-RELATIVE MOVEMENT --------
-    // In WebXR + A-Frame, the actual headset pose is applied to the
-    // camera's internal Three.js object. We read it via the scene's
-    // active camera rather than the a-camera entity, which ensures
-    // we get the true physical head orientation including XR tracking.
-    const xrCamera = this.el.sceneEl.renderer.xr.getCamera();
-    const camQuat  = xrCamera
-      ? xrCamera.quaternion
-      : (this.camera.object3D.getWorldQuaternion(new THREE.Quaternion()), this.camera.object3D.quaternion);
+    // getWorldQuaternion on the camera object3D correctly captures
+    // the full headset orientation in WebXR (rig yaw + physical head tracking).
+    const camQuat = new THREE.Quaternion();
+    this.camera.object3D.getWorldQuaternion(camQuat);
 
-    // Project headset forward direction onto the horizontal plane
+    // Build forward vector from headset orientation, flattened to horizontal plane
+    // so looking up/down doesn't tilt your movement direction.
     const headForward = new THREE.Vector3(0, 0, -1).applyQuaternion(camQuat);
     headForward.y = 0;
     headForward.normalize();
 
-    // Right vector is 90° clockwise from forward on the XZ plane
+    // Strafe right = rotate forward 90° clockwise around Y axis
     const headRight = new THREE.Vector3(headForward.z, 0, -headForward.x);
 
     const pos = this.rig.object3D.position;
-    // Stick forward = negative moveZ, stick back = positive moveZ.
-    // Negate so forward stick = move in headForward direction.
-    pos.x += (-headForward.x * moveZ + headRight.x * moveX) * this.moveSpeed;
-    pos.z += (-headForward.z * moveZ + headRight.z * moveX) * this.moveSpeed;
+    // axes[3]: negative = stick pushed forward, positive = stick pulled back
+    // So forward stick (moveZ negative) should add headForward → use -moveZ
+    pos.x += (headForward.x * -moveZ + headRight.x * moveX) * this.moveSpeed;
+    pos.z += (headForward.z * -moveZ + headRight.z * moveX) * this.moveSpeed;
   }
 });
 
