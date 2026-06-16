@@ -17,7 +17,7 @@
 
   <!-- Player rig (THIS moves in VR) -->
   <a-entity id="rig" quest-movement>
-    <a-camera position="0 1.6 0"></a-camera>
+    <a-camera id="camera" position="0 1.6 0" look-controls="enabled: false"></a-camera>
   </a-entity>
 
   <!-- Lights -->
@@ -32,12 +32,15 @@
 ----------------------------*/
 AFRAME.registerComponent("quest-movement", {
   init: function () {
-    this.rig = this.el;
+    this.rig    = this.el;
+    this.camera = this.el.querySelector("#camera");
 
-    this.moveSpeed = 0.05;
-    this.turnSpeed = 2.5;
+    this.moveSpeed  = 0.05;
+    this.turnSpeed  = 2.0;   // yaw degrees per tick
+    this.pitchSpeed = 1.5;   // pitch degrees per tick
 
-    this.rotationY = 0;
+    this.yaw   = 0;  // rig Y rotation
+    this.pitch = 0;  // camera X rotation
   },
 
   tick: function () {
@@ -46,44 +49,48 @@ AFRAME.registerComponent("quest-movement", {
 
     const inputSources = session.inputSources;
 
-    let moveX = 0;   // strafe
-    let moveY = 0;   // forward/back
-    let turnX = 0;   // rotation
+    let moveX = 0;   // strafe  (left stick horizontal)
+    let moveZ = 0;   // forward (left stick vertical)
+    let turnX = 0;   // yaw     (right stick horizontal)
+    let turnY = 0;   // pitch   (right stick vertical)
 
     for (const source of inputSources) {
       if (!source.gamepad || !source.handedness) continue;
 
+      // Quest thumbstick axes are at index 2 (X) and 3 (Y)
       const axes = source.gamepad.axes;
 
-      // LEFT controller = movement
       if (source.handedness === "left") {
-        moveX = axes[0] || 0;
-        moveY = axes[1] || 0;
+        moveX = axes[2] || 0;
+        moveZ = axes[3] || 0;
       }
 
-      // RIGHT controller = turning
       if (source.handedness === "right") {
-        turnX = axes[2] || axes[0] || 0;
+        turnX = axes[2] || 0;
+        turnY = axes[3] || 0;
       }
     }
 
-    // -------- ROTATION (YAW) --------
-    this.rotationY -= turnX * this.turnSpeed;
-    this.rig.setAttribute("rotation", `0 ${this.rotationY} 0`);
+    // -------- YAW (rig rotates left/right) --------
+    this.yaw -= turnX * this.turnSpeed;
+    this.rig.object3D.rotation.y = THREE.MathUtils.degToRad(this.yaw);
 
-    // -------- MOVEMENT --------
-    const angle = THREE.MathUtils.degToRad(this.rotationY);
+    // -------- PITCH (camera looks up/down) --------
+    this.pitch -= turnY * this.pitchSpeed;
+    this.pitch  = Math.max(-85, Math.min(85, this.pitch)); // clamp to avoid flipping
+    this.camera.object3D.rotation.x = THREE.MathUtils.degToRad(this.pitch);
 
-    const forwardX = Math.sin(angle);
-    const forwardZ = -Math.cos(angle);
+    // -------- MOVEMENT (relative to current yaw) --------
+    const angle = THREE.MathUtils.degToRad(this.yaw);
 
-    const rightX = Math.cos(angle);
-    const rightZ = Math.sin(angle);
+    const fwdX =  Math.sin(angle);
+    const fwdZ = -Math.cos(angle);
+    const rgtX =  Math.cos(angle);
+    const rgtZ =  Math.sin(angle);
 
     const pos = this.rig.object3D.position;
-
-    pos.x += (forwardX * -moveY + rightX * moveX) * this.moveSpeed;
-    pos.z += (forwardZ * -moveY + rightZ * moveX) * this.moveSpeed;
+    pos.x += (fwdX * -moveZ + rgtX * moveX) * this.moveSpeed;
+    pos.z += (fwdZ * -moveZ + rgtZ * moveX) * this.moveSpeed;
   }
 });
 
