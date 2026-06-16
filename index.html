@@ -17,7 +17,7 @@
 
   <!-- Player rig (THIS moves in VR) -->
   <a-entity id="rig" quest-movement>
-    <a-camera id="camera" position="0 1.6 0" look-controls="enabled: false"></a-camera>
+    <a-camera id="camera" position="0 1.6 0"></a-camera>
   </a-entity>
 
   <!-- Lights -->
@@ -35,12 +35,10 @@ AFRAME.registerComponent("quest-movement", {
     this.rig    = this.el;
     this.camera = this.el.querySelector("#camera");
 
-    this.moveSpeed  = 0.05;
-    this.turnSpeed  = 2.0;   // yaw degrees per tick
-    this.pitchSpeed = 1.5;   // pitch degrees per tick
+    this.moveSpeed = 0.05;  // meters per tick
+    this.turnSpeed = 2.0;   // degrees per tick for smooth turn
 
-    this.yaw   = 0;  // rig Y rotation
-    this.pitch = 0;  // camera X rotation
+    this.rigYaw = 0;        // accumulated body yaw (degrees)
   },
 
   tick: function () {
@@ -49,15 +47,14 @@ AFRAME.registerComponent("quest-movement", {
 
     const inputSources = session.inputSources;
 
-    let moveX = 0;   // strafe  (left stick horizontal)
-    let moveZ = 0;   // forward (left stick vertical)
-    let turnX = 0;   // yaw     (right stick horizontal)
-    let turnY = 0;   // pitch   (right stick vertical)
+    let moveX = 0;  // left stick horizontal  → strafe
+    let moveZ = 0;  // left stick vertical    → forward/back
+    let turnX = 0;  // right stick horizontal → body yaw
 
     for (const source of inputSources) {
       if (!source.gamepad || !source.handedness) continue;
 
-      // Quest thumbstick axes are at index 2 (X) and 3 (Y)
+      // Quest thumbstick axes: index 2 = X, index 3 = Y
       const axes = source.gamepad.axes;
 
       if (source.handedness === "left") {
@@ -67,30 +64,40 @@ AFRAME.registerComponent("quest-movement", {
 
       if (source.handedness === "right") {
         turnX = axes[2] || 0;
-        turnY = axes[3] || 0;
+        // axes[3] (right stick Y) intentionally unused —
+        // vertical look is handled by the headset physically
       }
     }
 
-    // -------- YAW (rig rotates left/right) --------
-    this.yaw -= turnX * this.turnSpeed;
-    this.rig.object3D.rotation.y = THREE.MathUtils.degToRad(this.yaw);
+    // -------- BODY TURN (rig yaw only) --------
+    this.rigYaw -= turnX * this.turnSpeed;
+    this.rig.object3D.rotation.y = THREE.MathUtils.degToRad(this.rigYaw);
 
-    // -------- PITCH (camera looks up/down) --------
-    this.pitch -= turnY * this.pitchSpeed;
-    this.pitch  = Math.max(-85, Math.min(85, this.pitch)); // clamp to avoid flipping
-    this.camera.object3D.rotation.x = THREE.MathUtils.degToRad(this.pitch);
+    // -------- HEAD-RELATIVE MOVEMENT --------
+    // Get the headset's current world yaw so movement follows
+    // where the player is actually looking, not just body facing.
+    // camera.object3D.getWorldQuaternion gives us the full headset
+    // orientation including both the rig turn and head tracking.
+    const camQuat = new THREE.Quaternion();
+    this.camera.object3D.getWorldQuaternion(camQuat);
 
-    // -------- MOVEMENT (relative to current yaw) --------
-    const angle = THREE.MathUtils.degToRad(this.yaw);
+    // Extract just the yaw component from the headset quaternion
+    // by projecting onto the Y axis and re-normalising.
+    const headForward = new THREE.Vector3(0, 0, -1)
+      .applyQuaternion(camQuat);
 
-    const fwdX =  Math.sin(angle);
-    const fwdZ = -Math.cos(angle);
-    const rgtX =  Math.cos(angle);
-    const rgtZ =  Math.sin(angle);
+    // Flatten to horizontal plane
+    headForward.y = 0;
+    headForward.normalize();
+
+    // Right vector is 90° clockwise from forward
+    const headRight = new THREE.Vector3(
+      headForward.z, 0, -headForward.x
+    );
 
     const pos = this.rig.object3D.position;
-    pos.x += (fwdX * -moveZ + rgtX * moveX) * this.moveSpeed;
-    pos.z += (fwdZ * -moveZ + rgtZ * moveX) * this.moveSpeed;
+    pos.x += (headForward.x * -moveZ + headRight.x * moveX) * this.moveSpeed;
+    pos.z += (headForward.z * -moveZ + headRight.z * moveX) * this.moveSpeed;
   }
 });
 
