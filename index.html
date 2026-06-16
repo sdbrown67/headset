@@ -89,8 +89,8 @@ AFRAME.registerComponent("quest-movement", {
 
     const pos = this.rig.object3D.position;
     // axes[3] negative = stick forward → move forward → add forward vector
-    pos.x += (fwdX * -moveZ + rgtX * moveX) * this.moveSpeed;
-    pos.z += (fwdZ * -moveZ + rgtZ * moveX) * this.moveSpeed;
+    pos.x += (fwdX * -moveZ + rgtX * -moveX) * this.moveSpeed;
+    pos.z += (fwdZ * -moveZ + rgtZ * -moveX) * this.moveSpeed;
   }
 });
 
