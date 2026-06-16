@@ -74,25 +74,23 @@ AFRAME.registerComponent("quest-movement", {
     this.rig.object3D.rotation.y = THREE.MathUtils.degToRad(this.rigYaw);
 
     // -------- HEAD-RELATIVE MOVEMENT --------
-    // getWorldQuaternion on the camera object3D correctly captures
-    // the full headset orientation in WebXR (rig yaw + physical head tracking).
-    const camQuat = new THREE.Quaternion();
-    this.camera.object3D.getWorldQuaternion(camQuat);
+    // Use the rig's current yaw for movement direction.
+    // The rig yaw IS the body facing direction — right stick controls it,
+    // and movement should follow it. No need to read the headset quaternion.
+    const angle = THREE.MathUtils.degToRad(this.rigYaw);
 
-    // Build forward vector from headset orientation, flattened to horizontal plane
-    // so looking up/down doesn't tilt your movement direction.
-    const headForward = new THREE.Vector3(0, 0, -1).applyQuaternion(camQuat);
-    headForward.y = 0;
-    headForward.normalize();
+    // Forward vector in XZ plane based on body yaw
+    const fwdX =  Math.sin(angle);
+    const fwdZ = -Math.cos(angle);
 
-    // Strafe right = rotate forward 90° clockwise around Y axis
-    const headRight = new THREE.Vector3(headForward.z, 0, -headForward.x);
+    // Right vector is forward rotated 90° clockwise
+    const rgtX =  Math.cos(angle);
+    const rgtZ =  Math.sin(angle);
 
     const pos = this.rig.object3D.position;
-    // axes[3]: negative = stick pushed forward, positive = stick pulled back
-    // So forward stick (moveZ negative) should add headForward → use -moveZ
-    pos.x += (headForward.x * -moveZ + headRight.x * moveX) * this.moveSpeed;
-    pos.z += (headForward.z * -moveZ + headRight.z * moveX) * this.moveSpeed;
+    // axes[3] negative = stick forward → move forward → add forward vector
+    pos.x += (fwdX * -moveZ + rgtX * moveX) * this.moveSpeed;
+    pos.z += (fwdZ * -moveZ + rgtZ * moveX) * this.moveSpeed;
   }
 });
 
