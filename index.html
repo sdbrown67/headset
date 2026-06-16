@@ -1,78 +1,114 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Quest 3 Passthrough GLB Viewer</title>
+<head>
+  <meta charset="utf-8" />
+  <title>VR Scene with Controllers</title>
 
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <!-- A-Frame -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+</head>
 
-    <script>
-      // Place model where controller points (simple MR placement)
-      AFRAME.registerComponent("place-on-trigger", {
-        init: function () {
-          this.raycaster = new THREE.Raycaster();
-          this.tempMatrix = new THREE.Matrix4();
+<body>
 
-          this.el.addEventListener("triggerdown", (e) => {
-            const controller = e.target;
+<a-scene
+  xr-mode-ui="enabled: true"
+  webxr="optionalFeatures: local-floor"
+  renderer="colorManagement: true;">
 
-            this.tempMatrix.identity().extractRotation(controller.object3D.matrixWorld);
+  <!-- Player rig (THIS moves in VR) -->
+  <a-entity id="rig" quest-movement>
+    <a-camera position="0 1.6 0"></a-camera>
+  </a-entity>
 
-            const origin = new THREE.Vector3();
-            origin.setFromMatrixPosition(controller.object3D.matrixWorld);
+  <!-- Lights -->
+  <a-light type="ambient" intensity="0.8"></a-light>
+  <a-light type="directional" position="2 4 2"></a-light>
 
-            const direction = new THREE.Vector3(0, 0, -1);
-            direction.applyMatrix4(this.tempMatrix);
+</a-scene>
 
-            this.raycaster.set(origin, direction);
+<script>
+/* ---------------------------
+   QUEST MOVEMENT CONTROLLER
+----------------------------*/
+AFRAME.registerComponent("quest-movement", {
+  init: function () {
+    this.rig = this.el;
 
-            // pretend floor plane at y = 0 (simple MR ground)
-            const t = -origin.y / direction.y;
-            const hitPoint = origin.clone().add(direction.multiplyScalar(t));
+    this.moveSpeed = 0.05;
+    this.turnSpeed = 2.5;
 
-            const model = document.querySelector("#model");
-            model.setAttribute("position", {
-              x: hitPoint.x,
-              y: 0,
-              z: hitPoint.z,
-            });
-          });
-        },
-      });
-    </script>
-  </head>
+    this.rotationY = 0;
+  },
 
-  <body>
-    <a-scene
-      webxr="requiredFeatures: local-floor;
-             optionalFeatures: hit-test, dom-overlay"
-      renderer="alpha: true; colorManagement: true"
-      background="transparent: true"
-      vr-mode-ui="enabled: true"
-    >
+  tick: function () {
+    const session = this.el.sceneEl.xrSession;
+    if (!session) return;
 
-      <!-- LIGHTING -->
-      <a-light type="ambient" intensity="1"></a-light>
-      <a-light type="directional" position="2 4 2"></a-light>
+    const inputSources = session.inputSources;
 
-      <!-- CAMERA / RIG -->
-      <a-entity id="rig">
-        <a-camera position="0 1.6 0"></a-camera>
+    let moveX = 0;   // strafe
+    let moveY = 0;   // forward/back
+    let turnX = 0;   // rotation
 
-        <!-- CONTROLLERS -->
-        <a-entity laser-controls="hand: left"></a-entity>
-        <a-entity laser-controls="hand: right"
-                  place-on-trigger></a-entity>
-      </a-entity>
+    for (const source of inputSources) {
+      if (!source.gamepad || !source.handedness) continue;
 
-      <!-- GLB MODEL -->
-      <a-entity
-        id="model"
-        gltf-model="url(model.glb)"
-        scale="1 1 1"
-        position="0 0 -1"
-      ></a-entity>
+      const axes = source.gamepad.axes;
 
-    </a-scene>
-  </body>
+      // LEFT controller = movement
+      if (source.handedness === "left") {
+        moveX = axes[0] || 0;
+        moveY = axes[1] || 0;
+      }
+
+      // RIGHT controller = turning
+      if (source.handedness === "right") {
+        turnX = axes[2] || axes[0] || 0;
+      }
+    }
+
+    // -------- ROTATION (YAW) --------
+    this.rotationY -= turnX * this.turnSpeed;
+    this.rig.setAttribute("rotation", `0 ${this.rotationY} 0`);
+
+    // -------- MOVEMENT --------
+    const angle = THREE.MathUtils.degToRad(this.rotationY);
+
+    const forwardX = Math.sin(angle);
+    const forwardZ = -Math.cos(angle);
+
+    const rightX = Math.cos(angle);
+    const rightZ = Math.sin(angle);
+
+    const pos = this.rig.object3D.position;
+
+    pos.x += (forwardX * -moveY + rightX * moveX) * this.moveSpeed;
+    pos.z += (forwardZ * -moveY + rightZ * moveX) * this.moveSpeed;
+  }
+});
+
+
+/* ---------------------------
+   LOAD SCENE FROM JSON
+----------------------------*/
+fetch("scene.json")
+  .then(res => res.json())
+  .then(objects => {
+    const scene = document.querySelector("a-scene");
+
+    objects.forEach(obj => {
+      const el = document.createElement("a-entity");
+
+      el.setAttribute("gltf-model", obj.url);
+      el.setAttribute("position", obj.position);
+      el.setAttribute("rotation", obj.rotation);
+      el.setAttribute("scale", obj.scale);
+
+      scene.appendChild(el);
+    });
+  })
+  .catch(err => console.error("scene.json failed:", err));
+</script>
+
+</body>
 </html>
