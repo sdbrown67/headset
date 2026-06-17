@@ -18,62 +18,52 @@
     });
 
     // Locomotion: left stick moves/strafes, right stick turns
+    // Uses session.inputSources directly — same approach as index.html
     AFRAME.registerComponent('vr-locomotion', {
       init() {
-        this.moveX = 0;
-        this.moveY = 0;
-        this.turnX = 0;
-
-        this.moveSpeed = 0.10;
-        this.turnSpeed = 0.035;
-        this.deadZone = 0.15;
-
-        this.forward = new THREE.Vector3();
-        this.right   = new THREE.Vector3();
-        this.up      = new THREE.Vector3(0, 1, 0);
-
-        const scene = this.el.sceneEl;
-
-        // Left controller — move & strafe
-        scene.addEventListener('controllerconnected', () => {
-          const leftEl  = document.querySelector('#left-controller');
-          const rightEl = document.querySelector('#right-controller');
-
-          if (leftEl) {
-            leftEl.addEventListener('thumbstickmoved', (e) => {
-              this.moveX = Math.abs(e.detail.x) < this.deadZone ? 0 : e.detail.x;
-              this.moveY = Math.abs(e.detail.y) < this.deadZone ? 0 : -e.detail.y;
-            });
-          }
-
-          if (rightEl) {
-            rightEl.addEventListener('thumbstickmoved', (e) => {
-              this.turnX = Math.abs(e.detail.x) < this.deadZone ? 0 : e.detail.x;
-            });
-          }
-        });
+        this.moveSpeed = 0.05;   // metres per tick
+        this.turnSpeed = 2.0;    // degrees per tick
+        this.rigYaw    = 0;      // accumulated body yaw in degrees
       },
 
       tick() {
-        const camera = document.querySelector('#camera');
-        if (!camera || !camera.object3D) return;
+        const session = this.el.sceneEl.xrSession;
+        if (!session) return;
 
-        // Turn
-        this.el.object3D.rotation.y -= this.turnX * this.turnSpeed;
+        let moveX = 0;
+        let moveZ = 0;
+        let turnX = 0;
 
-        // Forward direction from camera gaze (flattened to XZ plane)
-        camera.object3D.getWorldDirection(this.forward);
-        this.forward.y = 0;
-        this.forward.normalize();
+        for (const source of session.inputSources) {
+          if (!source.gamepad || !source.handedness) continue;
 
-        // Right vector
-        this.right.crossVectors(this.forward, this.up).normalize();
+          // Quest thumbstick: axes[2] = X, axes[3] = Y
+          const axes = source.gamepad.axes;
 
-        // Move forward/back
-        this.el.object3D.position.addScaledVector(this.forward, this.moveY * this.moveSpeed);
+          if (source.handedness === 'left') {
+            moveX = axes[2] || 0;
+            moveZ = axes[3] || 0;
+          }
 
-        // Strafe
-        this.el.object3D.position.addScaledVector(this.right, this.moveX * this.moveSpeed);
+          if (source.handedness === 'right') {
+            turnX = axes[2] || 0;
+          }
+        }
+
+        // Turn rig
+        this.rigYaw -= turnX * this.turnSpeed;
+        this.el.object3D.rotation.y = THREE.MathUtils.degToRad(this.rigYaw);
+
+        // Move relative to body facing direction
+        const angle = THREE.MathUtils.degToRad(this.rigYaw);
+        const fwdX =  Math.sin(angle);
+        const fwdZ = -Math.cos(angle);
+        const rgtX =  Math.cos(angle);
+        const rgtZ =  Math.sin(angle);
+
+        const pos = this.el.object3D.position;
+        pos.x += (fwdX * -moveZ + rgtX * moveX) * this.moveSpeed;
+        pos.z += (fwdZ * -moveZ + rgtZ * moveX) * this.moveSpeed;
       }
     });
   </script>
@@ -105,17 +95,6 @@
       id="camera"
       wasd-controls-enabled="false">
     </a-camera>
-
-    <!-- Quest 3 controllers -->
-    <a-entity
-      id="left-controller"
-      oculus-touch-controls="hand: left">
-    </a-entity>
-
-    <a-entity
-      id="right-controller"
-      oculus-touch-controls="hand: right">
-    </a-entity>
 
   </a-entity>
 
