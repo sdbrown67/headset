@@ -51,6 +51,10 @@
         this.moveSpeed = 0.05;   // metres per tick
         this.turnSpeed = 2.0;    // degrees per tick
         this.rigYaw    = 0;      // accumulated body yaw in degrees
+
+        this._fwd   = new THREE.Vector3();
+        this._right = new THREE.Vector3();
+        this._up    = new THREE.Vector3(0, 1, 0);
       },
 
       tick() {
@@ -64,7 +68,6 @@
         for (const source of session.inputSources) {
           if (!source.gamepad || !source.handedness) continue;
 
-          // Quest thumbstick: axes[2] = X, axes[3] = Y
           const axes = source.gamepad.axes;
 
           if (source.handedness === 'left') {
@@ -81,16 +84,15 @@
         this.rigYaw -= turnX * this.turnSpeed;
         this.el.object3D.rotation.y = THREE.MathUtils.degToRad(this.rigYaw);
 
-        // Move relative to body facing direction
-        const angle = THREE.MathUtils.degToRad(this.rigYaw);
-        const fwdX =  Math.sin(angle);
-        const fwdZ = -Math.cos(angle);
-        const rgtX =  Math.cos(angle);
-        const rgtZ =  Math.sin(angle);
+        // Get rig's actual world forward and right vectors from the object3D matrix
+        // This is reliable regardless of how rotation was applied
+        const mat = this.el.object3D.matrixWorld;
+        this._fwd.set(-mat.elements[8], 0, -mat.elements[10]).normalize();
+        this._right.set(mat.elements[0], 0, mat.elements[2]).normalize();
 
         const pos = this.el.object3D.position;
-        pos.x += (fwdX * -moveZ + rgtX * moveX) * this.moveSpeed;
-        pos.z += (fwdZ * -moveZ + rgtZ * moveX) * this.moveSpeed;
+        pos.addScaledVector(this._fwd,   -moveZ * this.moveSpeed);
+        pos.addScaledVector(this._right,  moveX * this.moveSpeed);
       }
     });
   </script>
