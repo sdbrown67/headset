@@ -96,24 +96,24 @@
       wasd-controls-enabled="false">
     </a-camera>
 
-    <!-- Forward direction arrow (sits at floor level, child of rig so it rotates with it) -->
-    <a-entity position="0 -1.5 0">
+    <!-- Forward direction arrow — large, at eye level, in front of camera -->
+    <a-entity position="0 0 0">
 
       <!-- Shaft -->
       <a-cylinder
-        position="0 0 -1"
-        radius="0.04"
-        height="1.2"
+        position="0 1.6 -3"
+        radius="0.08"
+        height="2.5"
         rotation="90 0 0"
         color="#00FF00">
       </a-cylinder>
 
       <!-- Tip -->
       <a-cone
-        position="0 0 -1.7"
-        radius-bottom="0.12"
+        position="0 1.6 -4.4"
+        radius-bottom="0.25"
         radius-top="0"
-        height="0.4"
+        height="0.8"
         rotation="90 0 0"
         color="#00FF00">
       </a-cone>
