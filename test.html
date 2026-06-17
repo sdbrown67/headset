@@ -9,10 +9,7 @@
   <script>
     AFRAME.registerComponent('floor-grid', {
       init() {
-        const grid = new THREE.GridHelper(
-          200,  // size
-          200   // divisions
-        );
+        const grid = new THREE.GridHelper(200, 200);
         this.el.object3D.add(grid);
       }
     });
@@ -24,37 +21,33 @@
         canvas.width  = 256;
         canvas.height = 256;
         const ctx = canvas.getContext('2d');
-
         ctx.fillStyle = 'rgba(0,0,0,0)';
         ctx.fillRect(0, 0, 256, 256);
-
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 200px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(this.data.value, 128, 128);
-
         const texture = new THREE.CanvasTexture(canvas);
-        const mat = new THREE.MeshBasicMaterial({
-          map: texture,
-          transparent: true,
-          side: THREE.DoubleSide
-        });
+        const mat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
         const geo = new THREE.PlaneGeometry(10, 10);
-        const mesh = new THREE.Mesh(geo, mat);
-        this.el.object3D.add(mesh);
+        this.el.object3D.add(new THREE.Mesh(geo, mat));
       }
     });
-    // Uses session.inputSources directly — same approach as index.html
+
+    // Two-entity rig:
+    //   #move-rig  — holds world XZ position, vr-locomotion lives here
+    //   #turn-rig  — child of move-rig, holds only the right-stick yaw
+    //   #camera    — child of turn-rig, WebXR writes head tracking here only
+    //
+    // Because turn is on a separate entity from the camera, WebXR head-tracking
+    // cannot corrupt rigYaw, so forward/back always follows the rig facing direction.
+
     AFRAME.registerComponent('vr-locomotion', {
       init() {
-        this.moveSpeed = 0.05;   // metres per tick
-        this.turnSpeed = 2.0;    // degrees per tick
-        this.rigYaw    = 0;      // accumulated body yaw in degrees
-
-        this._fwd   = new THREE.Vector3();
-        this._right = new THREE.Vector3();
-        this._up    = new THREE.Vector3(0, 1, 0);
+        this.moveSpeed = 0.05;
+        this.turnSpeed = 2.0;
+        this.rigYaw    = 0;      // degrees, only ever changed by right stick
       },
 
       tick() {
@@ -67,32 +60,35 @@
 
         for (const source of session.inputSources) {
           if (!source.gamepad || !source.handedness) continue;
-
           const axes = source.gamepad.axes;
-
           if (source.handedness === 'left') {
             moveX = axes[2] || 0;
             moveZ = axes[3] || 0;
           }
-
           if (source.handedness === 'right') {
             turnX = axes[2] || 0;
           }
         }
 
-        // Turn rig
+        // Accumulate yaw from right stick only — never read back from any object3D
         this.rigYaw -= turnX * this.turnSpeed;
-        this.el.object3D.rotation.y = THREE.MathUtils.degToRad(this.rigYaw);
 
-        // Get rig's actual world forward and right vectors from the object3D matrix
-        // This is reliable regardless of how rotation was applied
-        const mat = this.el.object3D.matrixWorld;
-        this._fwd.set(-mat.elements[8], 0, -mat.elements[10]).normalize();
-        this._right.set(mat.elements[0], 0, mat.elements[2]).normalize();
+        // Apply turn to turn-rig
+        const turnRig = document.querySelector('#turn-rig');
+        if (turnRig) {
+          turnRig.object3D.rotation.set(0, THREE.MathUtils.degToRad(this.rigYaw), 0);
+        }
+
+        // Movement vectors derived purely from rigYaw
+        const rad  = THREE.MathUtils.degToRad(this.rigYaw);
+        const fwdX =  Math.sin(rad);
+        const fwdZ = -Math.cos(rad);
+        const rgtX =  Math.cos(rad);
+        const rgtZ =  Math.sin(rad);
 
         const pos = this.el.object3D.position;
-        pos.addScaledVector(this._fwd,   -moveZ * this.moveSpeed);
-        pos.addScaledVector(this._right,  moveX * this.moveSpeed);
+        pos.x += (fwdX * -moveZ + rgtX * moveX) * this.moveSpeed;
+        pos.z += (fwdZ * -moveZ + rgtZ * moveX) * this.moveSpeed;
       }
     });
   </script>
@@ -114,21 +110,18 @@
     color="#222">
   </a-plane>
 
-  <!-- PLAYER -->
-  <a-entity
-    id="rig"
-    vr-locomotion
-    position="0 1.6 5">
+  <!-- PLAYER
+       move-rig  : XZ position only, vr-locomotion drives it
+       turn-rig  : right-stick yaw only, isolated from WebXR head tracking
+       camera    : WebXR head tracking applies here, does not affect turn-rig
+  -->
+  <a-entity id="move-rig" vr-locomotion position="0 0 5">
 
-    <a-camera
-      id="camera"
-      wasd-controls-enabled="false">
-    </a-camera>
+    <a-entity id="turn-rig">
 
-    <!-- Forward direction arrow — large, at eye level, in front of camera -->
-    <a-entity position="0 0 0">
+      <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false"></a-camera>
 
-      <!-- Shaft -->
+      <!-- Forward arrow — at eye level, always shows rig facing direction -->
       <a-cylinder
         position="0 1.6 -3"
         radius="0.08"
@@ -136,8 +129,6 @@
         rotation="90 0 0"
         color="#00FF00">
       </a-cylinder>
-
-      <!-- Tip -->
       <a-cone
         position="0 1.6 -4.4"
         radius-bottom="0.25"
@@ -152,92 +143,26 @@
   </a-entity>
 
   <!-- COMPASS LABELS -->
+  <a-entity compass-label="value: N" position="0 5 -40"></a-entity>
+  <a-entity compass-label="value: S" position="0 5 40"  rotation="0 180 0"></a-entity>
+  <a-entity compass-label="value: E" position="40 5 0"  rotation="0 -90 0"></a-entity>
+  <a-entity compass-label="value: W" position="-40 5 0" rotation="0 90 0"></a-entity>
 
-  <!-- NORTH -->
-  <a-entity
-    compass-label="value: N"
-    position="0 5 -40"
-    rotation="0 0 0">
-  </a-entity>
-
-  <!-- SOUTH -->
-  <a-entity
-    compass-label="value: S"
-    position="0 5 40"
-    rotation="0 180 0">
-  </a-entity>
-
-  <!-- EAST -->
-  <a-entity
-    compass-label="value: E"
-    position="40 5 0"
-    rotation="0 -90 0">
-  </a-entity>
-
-  <!-- WEST -->
-  <a-entity
-    compass-label="value: W"
-    position="-40 5 0"
-    rotation="0 90 0">
-  </a-entity>
-  <a-box
-    position="0 0.5 0"
-    color="red">
-  </a-box>
-
-  <!-- NORTH -->
-  <a-box
-    position="0 0.5 -10"
-    color="blue">
-  </a-box>
-
-  <!-- EAST -->
-  <a-box
-    position="10 0.5 0"
-    color="green">
-  </a-box>
-
-  <!-- WEST -->
-  <a-box
-    position="-10 0.5 0"
-    color="yellow">
-  </a-box>
+  <!-- ORIGIN MARKER -->
+  <a-box position="0 0.5 0"    color="red"></a-box>
+  <a-box position="0 0.5 -10"  color="blue"></a-box>
+  <a-box position="10 0.5 0"   color="green"></a-box>
+  <a-box position="-10 0.5 0"  color="yellow"></a-box>
 
   <!-- FLIGHT TARGETS -->
-
-  <a-box
-    position="0 5 -20"
-    color="orange">
-  </a-box>
-
-  <a-box
-    position="10 10 -30"
-    color="purple">
-  </a-box>
-
-  <a-box
-    position="-15 8 -25"
-    color="cyan">
-  </a-box>
-
-  <a-sphere
-    position="0 15 -40"
-    radius="2"
-    color="#FF66AA">
-  </a-sphere>
+  <a-box    position="0 5 -20"    color="orange"></a-box>
+  <a-box    position="10 10 -30"  color="purple"></a-box>
+  <a-box    position="-15 8 -25"  color="cyan"></a-box>
+  <a-sphere position="0 15 -40"   radius="2" color="#FF66AA"></a-sphere>
 
   <!-- LIGHTING -->
-
-  <a-light
-    type="ambient"
-    intensity="0.8">
-  </a-light>
-
-  <a-light
-    type="directional"
-    intensity="0.8"
-    position="1 3 2">
-  </a-light>
+  <a-light type="ambient"     intensity="0.8"></a-light>
+  <a-light type="directional" intensity="0.8" position="1 3 2"></a-light>
 
 </a-scene>
 
