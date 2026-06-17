@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>VR Flight Test</title>
+
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+
+  <script>
+    AFRAME.registerComponent('floor-grid', {
+      init() {
+        const grid = new THREE.GridHelper(
+          200,  // size
+          200   // divisions
+        );
+
+        this.el.object3D.add(grid);
+      }
+    });
+
+    window.addEventListener('load', () => {
+
+      const rig = document.querySelector('#rig');
+      const camera = document.querySelector('#camera');
+
+      const forward = new THREE.Vector3();
+      const right = new THREE.Vector3();
+      const up = new THREE.Vector3(0, 1, 0);
+
+      let moveX = 0;
+      let moveY = 0;
+      let turnX = 0;
+
+      const moveSpeed = 0.10;
+      const turnSpeed = 0.035;
+      const deadZone = 0.15;
+
+      function applyDeadZone(v) {
+        return Math.abs(v) < deadZone ? 0 : v;
+      }
+
+      function updateGamepad() {
+
+        const gamepads = navigator.getGamepads();
+
+        for (const gp of gamepads) {
+
+          if (!gp) continue;
+
+          if (gp.axes.length >= 4) {
+
+            moveX = applyDeadZone(gp.axes[0]);
+            moveY = applyDeadZone(-gp.axes[1]);
+
+            turnX = applyDeadZone(gp.axes[2]);
+
+            return;
+          }
+        }
+
+        moveX = 0;
+        moveY = 0;
+        turnX = 0;
+      }
+
+      function tick() {
+
+        updateGamepad();
+
+        //
+        // Turn rig with right stick
+        //
+        rig.object3D.rotation.y -= turnX * turnSpeed;
+
+        //
+        // Forward vector from gaze
+        //
+        camera.object3D.getWorldDirection(forward);
+
+        //
+        // Right vector (towards right ear)
+        //
+        right.crossVectors(forward, up).normalize();
+
+        //
+        // Forward/back movement
+        //
+        rig.object3D.position.addScaledVector(
+          forward,
+          moveY * moveSpeed
+        );
+
+        //
+        // Strafing
+        //
+        rig.object3D.position.addScaledVector(
+          right,
+          moveX * moveSpeed
+        );
+
+        requestAnimationFrame(tick);
+      }
+
+      tick();
+    });
+  </script>
+</head>
+
+<body>
+
+<a-scene background="color: #111">
+
+  <!-- FLOOR GRID -->
+  <a-entity floor-grid></a-entity>
+
+  <!-- FLOOR -->
+  <a-plane
+    position="0 -0.01 0"
+    rotation="-90 0 0"
+    width="200"
+    height="200"
+    color="#222">
+  </a-plane>
+
+  <!-- PLAYER -->
+  <a-entity
+    id="rig"
+    position="0 1.6 5">
+
+    <a-camera
+      id="camera"
+      wasd-controls-enabled="false">
+    </a-camera>
+
+  </a-entity>
+
+  <!-- ORIGIN -->
+  <a-box
+    position="0 0.5 0"
+    color="red">
+  </a-box>
+
+  <!-- NORTH -->
+  <a-box
+    position="0 0.5 -10"
+    color="blue">
+  </a-box>
+
+  <!-- EAST -->
+  <a-box
+    position="10 0.5 0"
+    color="green">
+  </a-box>
+
+  <!-- WEST -->
+  <a-box
+    position="-10 0.5 0"
+    color="yellow">
+  </a-box>
+
+  <!-- FLIGHT TARGETS -->
+
+  <a-box
+    position="0 5 -20"
+    color="orange">
+  </a-box>
+
+  <a-box
+    position="10 10 -30"
+    color="purple">
+  </a-box>
+
+  <a-box
+    position="-15 8 -25"
+    color="cyan">
+  </a-box>
+
+  <a-sphere
+    position="0 15 -40"
+    radius="2"
+    color="#FF66AA">
+  </a-sphere>
+
+  <!-- LIGHTING -->
+
+  <a-light
+    type="ambient"
+    intensity="0.8">
+  </a-light>
+
+  <a-light
+    type="directional"
+    intensity="0.8"
+    position="1 3 2">
+  </a-light>
+
+</a-scene>
+
+</body>
+</html>
