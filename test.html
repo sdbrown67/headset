@@ -18,7 +18,7 @@
       }
     });
 
-    window.addEventListener('load', () => {
+    document.querySelector('a-scene').addEventListener('renderstart', () => {
 
       const rig = document.querySelector('#rig');
       const camera = document.querySelector('#camera');
