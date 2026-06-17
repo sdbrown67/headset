@@ -13,95 +13,68 @@
           200,  // size
           200   // divisions
         );
-
         this.el.object3D.add(grid);
       }
     });
 
-    document.querySelector('a-scene').addEventListener('renderstart', () => {
+    // Locomotion: left stick moves/strafes, right stick turns
+    AFRAME.registerComponent('vr-locomotion', {
+      init() {
+        this.moveX = 0;
+        this.moveY = 0;
+        this.turnX = 0;
 
-      const rig = document.querySelector('#rig');
-      const camera = document.querySelector('#camera');
+        this.moveSpeed = 0.10;
+        this.turnSpeed = 0.035;
+        this.deadZone = 0.15;
 
-      const forward = new THREE.Vector3();
-      const right = new THREE.Vector3();
-      const up = new THREE.Vector3(0, 1, 0);
+        this.forward = new THREE.Vector3();
+        this.right   = new THREE.Vector3();
+        this.up      = new THREE.Vector3(0, 1, 0);
 
-      let moveX = 0;
-      let moveY = 0;
-      let turnX = 0;
+        const scene = this.el.sceneEl;
 
-      const moveSpeed = 0.10;
-      const turnSpeed = 0.035;
-      const deadZone = 0.15;
+        // Left controller — move & strafe
+        scene.addEventListener('controllerconnected', () => {
+          const leftEl  = document.querySelector('#left-controller');
+          const rightEl = document.querySelector('#right-controller');
 
-      function applyDeadZone(v) {
-        return Math.abs(v) < deadZone ? 0 : v;
-      }
-
-      function updateGamepad() {
-
-        const gamepads = navigator.getGamepads();
-
-        for (const gp of gamepads) {
-
-          if (!gp) continue;
-
-          if (gp.axes.length >= 4) {
-
-            moveX = applyDeadZone(gp.axes[0]);
-            moveY = applyDeadZone(-gp.axes[1]);
-
-            turnX = applyDeadZone(gp.axes[2]);
-
-            return;
+          if (leftEl) {
+            leftEl.addEventListener('thumbstickmoved', (e) => {
+              this.moveX = Math.abs(e.detail.x) < this.deadZone ? 0 : e.detail.x;
+              this.moveY = Math.abs(e.detail.y) < this.deadZone ? 0 : -e.detail.y;
+            });
           }
-        }
 
-        moveX = 0;
-        moveY = 0;
-        turnX = 0;
+          if (rightEl) {
+            rightEl.addEventListener('thumbstickmoved', (e) => {
+              this.turnX = Math.abs(e.detail.x) < this.deadZone ? 0 : e.detail.x;
+            });
+          }
+        });
+      },
+
+      tick() {
+        const camera = document.querySelector('#camera');
+        if (!camera || !camera.object3D) return;
+
+        // Turn
+        this.el.object3D.rotation.y -= this.turnX * this.turnSpeed;
+
+        // Forward direction from camera gaze (flattened to XZ plane)
+        camera.object3D.getWorldDirection(this.forward);
+        this.forward.y = 0;
+        this.forward.normalize();
+
+        // Right vector
+        this.right.crossVectors(this.forward, this.up).normalize();
+
+        // Move forward/back
+        this.el.object3D.position.addScaledVector(this.forward, this.moveY * this.moveSpeed);
+
+        // Strafe
+        this.el.object3D.position.addScaledVector(this.right, this.moveX * this.moveSpeed);
       }
-
-      function tick() {
-
-        updateGamepad();
-
-        //
-        // Turn rig with right stick
-        //
-        rig.object3D.rotation.y -= turnX * turnSpeed;
-
-        //
-        // Forward vector from gaze
-        //
-        camera.object3D.getWorldDirection(forward);
-
-        //
-        // Right vector (towards right ear)
-        //
-        right.crossVectors(forward, up).normalize();
-
-        //
-        // Forward/back movement
-        //
-        rig.object3D.position.addScaledVector(
-          forward,
-          moveY * moveSpeed
-        );
-
-        //
-        // Strafing
-        //
-        rig.object3D.position.addScaledVector(
-          right,
-          moveX * moveSpeed
-        );
-
-        requestAnimationFrame(tick);
-      }
-
-      tick();
     });
   </script>
 </head>
@@ -125,12 +98,24 @@
   <!-- PLAYER -->
   <a-entity
     id="rig"
+    vr-locomotion
     position="0 1.6 5">
 
     <a-camera
       id="camera"
       wasd-controls-enabled="false">
     </a-camera>
+
+    <!-- Quest 3 controllers -->
+    <a-entity
+      id="left-controller"
+      oculus-touch-controls="hand: left">
+    </a-entity>
+
+    <a-entity
+      id="right-controller"
+      oculus-touch-controls="hand: right">
+    </a-entity>
 
   </a-entity>
 
