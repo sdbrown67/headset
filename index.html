@@ -38,23 +38,15 @@
 
     AFRAME.registerComponent('gamepad-debug', {
       init() {
-        this.canvas = document.createElement('canvas');
-        this.canvas.width = 512;
-        this.canvas.height = 512;
-        this.ctx = this.canvas.getContext('2d');
-        this.texture = new THREE.CanvasTexture(this.canvas);
-        const mat = new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, side: THREE.DoubleSide });
-        const geo = new THREE.PlaneGeometry(1, 1);
-        this.el.object3D.add(new THREE.Mesh(geo, mat));
-        this.tick = AFRAME.utils.throttleTick(this.tick, 100, this);
+        this.textEl = document.createElement('a-text');
+        this.textEl.setAttribute('color', '#00ff00');
+        this.textEl.setAttribute('width', '1.5');
+        this.textEl.setAttribute('align', 'left');
+        this.textEl.setAttribute('wrap-count', '40');
+        this.el.appendChild(this.textEl);
+        this.tick = AFRAME.utils.throttleTick(this.tick, 200, this);
       },
       tick() {
-        const ctx = this.ctx;
-        ctx.fillStyle = 'rgba(0,0,0,0.8)';
-        ctx.fillRect(0, 0, 512, 512);
-        ctx.fillStyle = '#00ff00';
-        ctx.font = '22px monospace';
-
         const lines = [];
         const system = this.el.sceneEl.systems['tracked-controls']
                     || this.el.sceneEl.systems['tracked-controls-webxr'];
@@ -63,24 +55,21 @@
           system.controllers.forEach((ctrl, i) => {
             const gp = ctrl.gamepad;
             if (!gp) return;
-            lines.push(`XR[${i}] hand=${ctrl.handedness}`);
-            lines.push(`  axes: ${Array.from(gp.axes).map(a=>a.toFixed(2)).join(', ')}`);
+            lines.push(`XR[${i}] ${ctrl.handedness}`);
+            lines.push(`axes: ${Array.from(gp.axes).map(a=>a.toFixed(2)).join(' ')}`);
           });
         } else {
           lines.push('No XR controllers');
         }
 
-        const navGPs = navigator.getGamepads ? navigator.getGamepads() : [];
-        Array.from(navGPs).forEach((gp, i) => {
+        Array.from(navigator.getGamepads ? navigator.getGamepads() : []).forEach((gp, i) => {
           if (!gp) return;
-          lines.push(`NAV[${i}] ${gp.id.slice(0,20)}`);
-          lines.push(`  axes: ${Array.from(gp.axes).map(a=>a.toFixed(2)).join(', ')}`);
+          lines.push(`GP[${i}]`);
+          lines.push(`axes: ${Array.from(gp.axes).map(a=>a.toFixed(2)).join(' ')}`);
         });
 
-        if (!lines.length) lines.push('No gamepads detected');
-
-        lines.forEach((l, i) => ctx.fillText(l, 10, 30 + i * 28));
-        this.texture.needsUpdate = true;
+        if (!lines.length) lines.push('No input');
+        this.textEl.setAttribute('value', lines.join('\n'));
       }
     });
 
@@ -161,7 +150,10 @@
 
     <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false" look-controls>
       <!-- Debug panel: floats in front of you in VR -->
-      <a-entity gamepad-debug position="0 0 -1.5"></a-entity>
+      <a-entity position="0 0.2 -1.2">
+        <a-plane width="1.6" height="0.8" color="#000000" opacity="0.7"></a-plane>
+        <a-entity gamepad-debug position="-0.7 0.3 0.01"></a-entity>
+      </a-entity>
     </a-camera>
 
     <!-- Direction indicator: flat on floor below player, chevron points forward -->
