@@ -37,7 +37,67 @@
     });
 
 
-    AFRAME.registerComponent('vertical-controls', {
+    AFRAME.registerComponent('axis-bars', {
+      // Reads all axes from all controllers and drives 8 bar sliders
+      // Bars are children already in the DOM, named bar0..bar7
+      init() {
+        this.system = null;
+        this.bars = [];
+        for (let i = 0; i < 8; i++) {
+          this.bars.push(document.getElementById('bar' + i));
+        }
+      },
+      tick() {
+        if (!this.system) {
+          this.system = this.el.sceneEl.systems['tracked-controls']
+                     || this.el.sceneEl.systems['tracked-controls-webxr']
+                     || null;
+        }
+
+        // Collect all axes from all sources into a flat array
+        const axes = [0,0,0,0, 0,0,0,0];
+
+        if (this.system && this.system.controllers) {
+          let offset = 0;
+          this.system.controllers.forEach(ctrl => {
+            if (ctrl.gamepad && ctrl.gamepad.axes) {
+              Array.from(ctrl.gamepad.axes).forEach((v, i) => {
+                if (offset + i < 8) axes[offset + i] = v;
+              });
+              offset += ctrl.gamepad.axes.length;
+            }
+          });
+        }
+
+        // Also try navigator.getGamepads as fallback
+        if (axes.every(v => v === 0)) {
+          let offset = 0;
+          Array.from(navigator.getGamepads ? navigator.getGamepads() : []).forEach(gp => {
+            if (!gp) return;
+            Array.from(gp.axes).forEach((v, i) => {
+              if (offset + i < 8) axes[offset + i] = v;
+            });
+            offset += gp.axes.length;
+          });
+        }
+
+        // Update each bar: scale x from 0..1 based on axis -1..1
+        axes.forEach((v, i) => {
+          const bar = this.bars[i];
+          if (!bar) return;
+          const scale = Math.abs(v);           // 0..1
+          const sign  = v >= 0 ? 1 : -1;
+          bar.object3D.scale.x = Math.max(0.01, scale);
+          // Shift so bar grows from centre: offset = sign * (scale/2) * barWidth
+          bar.object3D.position.x = sign * scale * 0.15;
+          // Colour: positive=cyan, negative=red, idle=grey
+          const col = scale < 0.05 ? '#888888' : (sign > 0 ? '#00ffff' : '#ff4444');
+          bar.setAttribute('color', col);
+        });
+      }
+    });
+
+
       schema: {
         speed:    { type: 'number', default: 0.05 },
         deadzone: { type: 'number', default: 0.2 }
@@ -115,6 +175,29 @@
     <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false" look-controls>
     </a-camera>
 
+    <!-- AXIS DEBUG BARS: 8 bars, floats in front of camera at eye level, attached to rig -->
+    <!-- Each bar = white track + coloured fill. Bars are 0.3 wide, spaced 0.1 apart -->
+    <a-entity axis-bars position="0 1.6 -1.5">
+      <!-- Labels row (white track boxes) -->
+      <a-box width="0.30" height="0.04" depth="0.01" color="#333333" position="-0.35 0.08 0"></a-box>
+      <a-box width="0.30" height="0.04" depth="0.01" color="#333333" position="-0.05 0.08 0"></a-box>
+      <a-box width="0.30" height="0.04" depth="0.01" color="#333333" position=" 0.25 0.08 0"></a-box>
+      <a-box width="0.30" height="0.04" depth="0.01" color="#333333" position=" 0.55 0.08 0"></a-box>
+      <a-box width="0.30" height="0.04" depth="0.01" color="#333333" position=" 0.85 0.08 0"></a-box>
+      <a-box width="0.30" height="0.04" depth="0.01" color="#333333" position=" 1.15 0.08 0"></a-box>
+      <a-box width="0.30" height="0.04" depth="0.01" color="#333333" position=" 1.45 0.08 0"></a-box>
+      <a-box width="0.30" height="0.04" depth="0.01" color="#333333" position=" 1.75 0.08 0"></a-box>
+      <!-- Fill bars (driven by axis-bars component) -->
+      <a-box id="bar0" width="0.30" height="0.04" depth="0.015" color="#888888" position="-0.35 0.08 0"></a-box>
+      <a-box id="bar1" width="0.30" height="0.04" depth="0.015" color="#888888" position="-0.05 0.08 0"></a-box>
+      <a-box id="bar2" width="0.30" height="0.04" depth="0.015" color="#888888" position=" 0.25 0.08 0"></a-box>
+      <a-box id="bar3" width="0.30" height="0.04" depth="0.015" color="#888888" position=" 0.55 0.08 0"></a-box>
+      <a-box id="bar4" width="0.30" height="0.04" depth="0.015" color="#888888" position=" 0.85 0.08 0"></a-box>
+      <a-box id="bar5" width="0.30" height="0.04" depth="0.015" color="#888888" position=" 1.15 0.08 0"></a-box>
+      <a-box id="bar6" width="0.30" height="0.04" depth="0.015" color="#888888" position=" 1.45 0.08 0"></a-box>
+      <a-box id="bar7" width="0.30" height="0.04" depth="0.015" color="#888888" position=" 1.75 0.08 0"></a-box>
+    </a-entity>
+
     <!-- Direction indicator: flat on floor below player, chevron points forward -->
     <a-entity id="indicator" position="0 0.02 0">
       <a-entity rotation="0 180 0">
@@ -141,16 +224,6 @@
 
   </a-entity>
 
-  <!-- DEBUG PANEL: in front of player start (rig is at z=5, facing -z) -->
-  <a-plane id="debug-bg" position="0 2 -2" width="5" height="3" color="#000000"></a-plane>
-  <a-text id="debug-text"
-    value="loading..."
-    position="-2.4 3.4 -1.99"
-    color="#00ff00"
-    width="5"
-    wrap-count="35"
-    align="left">
-  </a-text>
 
   <!-- COMPASS LABELS -->
   <a-entity compass-label="value: N" position="0 5 -256"></a-entity>
@@ -164,37 +237,5 @@
 
 </a-scene>
 
-</body>
-
-<script>
-  setInterval(() => {
-    const el = document.getElementById('debug-text');
-    if (!el) return;
-    const lines = [];
-
-    const scene = document.querySelector('a-scene');
-    const system = scene && (scene.systems['tracked-controls'] || scene.systems['tracked-controls-webxr']);
-
-    if (system && system.controllers && system.controllers.length) {
-      system.controllers.forEach((ctrl, i) => {
-        const gp = ctrl.gamepad;
-        if (!gp) { lines.push(`XR[${i}] no gamepad`); return; }
-        lines.push(`XR[${i}] ${ctrl.handedness}`);
-        lines.push(`  ${Array.from(gp.axes).map((a,j)=>`a${j}:${a.toFixed(2)}`).join(' ')}`);
-      });
-    } else {
-      lines.push('No XR controllers');
-    }
-
-    Array.from(navigator.getGamepads ? navigator.getGamepads() : []).forEach((gp, i) => {
-      if (!gp) return;
-      lines.push(`GP[${i}]`);
-      lines.push(`  ${Array.from(gp.axes).map((a,j)=>`a${j}:${a.toFixed(2)}`).join(' ')}`);
-    });
-
-    if (!lines.length) lines.push('No input found');
-    el.setAttribute('value', lines.join('\n'));
-  }, 300);
-</script>
 </body>
 </html>
