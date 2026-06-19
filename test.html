@@ -37,44 +37,45 @@
 
     AFRAME.registerComponent('direction-indicator', {
       init() {
-        const color = 0x00ff00;
-        const lineWidth = 1; // note: WebGL ignores linewidth > 1 on most platforms
-
-        // --- Ring ---
-        const ringGeo = new THREE.BufferGeometry();
-        const ringPoints = [];
-        const segments = 64;
+        const color = '#00ff00';
         const radius = 2.0;
-        for (let i = 0; i <= segments; i++) {
-          const a = (i / segments) * Math.PI * 2;
-          ringPoints.push(Math.cos(a) * radius, 0, Math.sin(a) * radius);
-        }
-        ringGeo.setAttribute('position', new THREE.Float32BufferAttribute(ringPoints, 3));
-        const ringMat = new THREE.LineBasicMaterial({ color });
-        const ring = new THREE.Line(ringGeo, ringMat);
-        this.el.object3D.add(ring);
+        const tubeR  = 0.06;
 
-        // --- Chevron (open triangle — two lines from base corners to tip) ---
-        // Tip points forward (negative Z), base spans behind tip
-        const tipZ    = -1.6;
-        const baseZ   =  1.0;
-        const baseX   =  1.1;
+        // --- Ring: made from a torus ---
+        const torus = document.createElement('a-torus');
+        torus.setAttribute('radius',       radius);
+        torus.setAttribute('radius-tubular', tubeR);
+        torus.setAttribute('segments-tubular', 64);
+        torus.setAttribute('color', color);
+        torus.setAttribute('rotation', '90 0 0');
+        this.el.appendChild(torus);
 
-        // Left arm: base-left to tip
-        const leftGeo = new THREE.BufferGeometry();
-        leftGeo.setAttribute('position', new THREE.Float32BufferAttribute([
-          -baseX, 0, baseZ,
-           0,     0, tipZ
-        ], 3));
-        this.el.object3D.add(new THREE.Line(leftGeo, new THREE.LineBasicMaterial({ color })));
+        // --- Chevron: two flat boxes angled to form a V ---
+        // Each arm is a thin box rotated to point from base corner to tip
+        // Arm length and angle chosen to fit inside the ring
 
-        // Right arm: base-right to tip
-        const rightGeo = new THREE.BufferGeometry();
-        rightGeo.setAttribute('position', new THREE.Float32BufferAttribute([
-          baseX, 0, baseZ,
-          0,    0, tipZ
-        ], 3));
-        this.el.object3D.add(new THREE.Line(rightGeo, new THREE.LineBasicMaterial({ color })));
+        const armLen = 1.8;
+        const armAngle = 35; // degrees outward from forward axis
+
+        // Left arm
+        const left = document.createElement('a-box');
+        left.setAttribute('width',  tubeR * 2);
+        left.setAttribute('height', tubeR * 2);
+        left.setAttribute('depth',  armLen);
+        left.setAttribute('color',  color);
+        left.setAttribute('position', `-0.55 0 -0.3`);
+        left.setAttribute('rotation', `0 ${armAngle} 0`);
+        this.el.appendChild(left);
+
+        // Right arm
+        const right = document.createElement('a-box');
+        right.setAttribute('width',  tubeR * 2);
+        right.setAttribute('height', tubeR * 2);
+        right.setAttribute('depth',  armLen);
+        right.setAttribute('color',  color);
+        right.setAttribute('position', `0.55 0 -0.3`);
+        right.setAttribute('rotation', `0 ${-armAngle} 0`);
+        this.el.appendChild(right);
       }
     });
     //   #move-rig  — holds world XZ position, vr-locomotion lives here
