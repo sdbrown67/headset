@@ -38,25 +38,51 @@
 
     AFRAME.registerComponent('vertical-controls', {
       schema: {
-        speed:     { type: 'number', default: 0.05 },
-        deadzone:  { type: 'number', default: 0.15 }
+        speed:    { type: 'number', default: 0.05 },
+        deadzone: { type: 'number', default: 0.2 }
+      },
+      init() {
+        // Use the same tracked-controls system that aframe-extras uses
+        this.system = null;
       },
       tick() {
-        const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-        for (let i = 0; i < gamepads.length; i++) {
-          const gp = gamepads[i];
-          if (!gp) continue;
-
-          // Right joystick Y axis is typically axis index 3
-          const axisY = gp.axes[3];
-          if (axisY === undefined) continue;
-          if (Math.abs(axisY) < this.data.deadzone) continue;
-
-          // Forward (axisY > 0) = go down, backward (axisY < 0) = go up
-          const pos = this.el.object3D.position;
-          pos.y -= axisY * this.data.speed;
-          break;
+        // Lazy-init the system reference
+        if (!this.system) {
+          this.system = this.el.sceneEl.systems['tracked-controls']
+                     || this.el.sceneEl.systems['tracked-controls-webxr']
+                     || null;
         }
+
+        let axisY = 0;
+
+        // Try XR controllers first (Quest / xr-standard mapping)
+        if (this.system && this.system.controllers && this.system.controllers.length) {
+          for (const ctrl of this.system.controllers) {
+            if (ctrl.handedness === 'right' && ctrl.gamepad) {
+              const gp = ctrl.gamepad;
+              // xr-standard: axes[2]=X, axes[3]=Y on each controller's own gamepad
+              axisY = (gp.axes && gp.axes[3] !== undefined) ? gp.axes[3] : 0;
+              break;
+            }
+          }
+        }
+
+        // Fallback: navigator.getGamepads (non-XR / desktop testing)
+        if (axisY === 0) {
+          const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+          for (const gp of gamepads) {
+            if (!gp) continue;
+            if (gp.hand === 'right' || (!gp.hand && gamepads.indexOf(gp) === 1)) {
+              axisY = gp.axes[3] !== undefined ? gp.axes[3] : 0;
+              break;
+            }
+          }
+        }
+
+        if (Math.abs(axisY) < this.data.deadzone) return;
+
+        // Forward (axisY > 0) = down, backward (axisY < 0) = up
+        this.el.object3D.position.y -= axisY * this.data.speed;
       }
     });
 
@@ -132,10 +158,10 @@
   </a-entity>
 
   <!-- COMPASS LABELS -->
-  <a-entity compass-label="value: N" position="0 5 -200"></a-entity>
-  <a-entity compass-label="value: S" position="0 5 200"  rotation="0 180 0"></a-entity>
-  <a-entity compass-label="value: E" position="200 5 0"  rotation="0 -90 0"></a-entity>
-  <a-entity compass-label="value: W" position="-200 5 0" rotation="0 90 0"></a-entity>
+  <a-entity compass-label="value: N" position="0 5 -256"></a-entity>
+  <a-entity compass-label="value: S" position="0 5 256"  rotation="0 180 0"></a-entity>
+  <a-entity compass-label="value: E" position="256 5 0"  rotation="0 -90 0"></a-entity>
+  <a-entity compass-label="value: W" position="-256 5 0" rotation="0 90 0"></a-entity>
 
   <!-- LIGHTING -->
   <a-light type="ambient"     intensity="0.8"></a-light>
