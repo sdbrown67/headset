@@ -36,6 +36,30 @@
       }
     });
 
+    AFRAME.registerComponent('vertical-controls', {
+      schema: {
+        speed:     { type: 'number', default: 0.05 },
+        deadzone:  { type: 'number', default: 0.15 }
+      },
+      tick() {
+        const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+        for (let i = 0; i < gamepads.length; i++) {
+          const gp = gamepads[i];
+          if (!gp) continue;
+
+          // Right joystick Y axis is typically axis index 3
+          const axisY = gp.axes[3];
+          if (axisY === undefined) continue;
+          if (Math.abs(axisY) < this.data.deadzone) continue;
+
+          // Forward (axisY > 0) = go down, backward (axisY < 0) = go up
+          const pos = this.el.object3D.position;
+          pos.y -= axisY * this.data.speed;
+          break;
+        }
+      }
+    });
+
     /* Load Scene From Json */
     document.addEventListener('DOMContentLoaded', () => {
       const scene = document.querySelector("a-scene");
@@ -76,6 +100,7 @@
   <!-- PLAYER - aframe-extras movement-controls handles Quest joysticks automatically -->
   <a-entity id="rig"
     movement-controls="controls: gamepad; speed: 0.15;"
+    vertical-controls
     position="0 0 5">
 
     <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false" look-controls></a-camera>
@@ -88,17 +113,17 @@
         <a-torus radius="1.5" radius-tubular="0.005" segments-tubular="64" color="#00ff00" rotation="90 0 0"></a-torus>
 
         <!-- Chevron left arm — thin, tip meets circle at front, base meets circle at back corners -->
-        <a-box width="0.005" height="0.005" depth="3"
+        <a-box width="0.005" height="0.005" depth="2.6"
           color="#00ff00"
-          position="-0.62 0 -0.18"
-          rotation="0 21 0">
+          position="-0.47 0 .175"
+          rotation="0 21 1.5">
         </a-box>
 
         <!-- Chevron right arm -->
-        <a-box width="0.005" height="0.005" depth="3"
+        <a-box width="0.005" height="0.005" depth="2.6"
           color="#00ff00"
-          position="0.62 0 -0.18"
-          rotation="0 -21 0">
+          position="0.47 0 .175"
+          rotation="0 -21 1.5">
         </a-box>
 
       </a-entity>

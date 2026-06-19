@@ -87,18 +87,18 @@
         <!-- Ring — thin -->
         <a-torus radius="1.5" radius-tubular="0.005" segments-tubular="64" color="#00ff00" rotation="90 0 0"></a-torus>
 
-        <!-- Chevron left arm — tip at (0,0,-1.5), base at (-1.4,0,0.54), contained within radius-1.5 ring -->
-        <a-box width="0.05" height="0.005" depth="2.47"
+        <!-- Chevron left arm — thin, tip meets circle at front, base meets circle at back corners -->
+        <a-box width="0.005" height="0.005" depth="2.6"
           color="#00ff00"
-          position="-0.7 0 -0.48"
-          rotation="0 34.5 0">
+          position="-0.47 0 .175"
+          rotation="0 21 1.5">
         </a-box>
 
-        <!-- Chevron right arm — tip at (0,0,-1.5), base at (1.4,0,0.54) -->
-        <a-box width="0.05" height="0.005" depth="2.47"
+        <!-- Chevron right arm -->
+        <a-box width="0.005" height="0.005" depth="2.6"
           color="#00ff00"
-          position="0.7 0 -0.48"
-          rotation="0 -34.5 0">
+          position="0.47 0 .175"
+          rotation="0 -21 1.5">
         </a-box>
 
       </a-entity>
