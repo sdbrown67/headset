@@ -111,17 +111,16 @@
 
       <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false"></a-camera>
 
-      <!-- Direction indicator attached to camera so it tilts with head look-down -->
-      <!-- Positioned 1.5m in front at chest height so glancing down shows it -->
-      <a-entity id="indicator" position="0 1.6 0">
+      <!-- Direction indicator attached to turn-rig, flat on floor below player -->
+      <a-entity id="indicator" position="0 0.02 0">
 
-        <!-- Tilted 60deg so player sees it by glancing slightly downward -->
-        <a-entity rotation="-60 0 0" position="0 0 -1.2">
+        <!-- Rotated 180 on Y so chevron points forward (-Z) -->
+        <a-entity rotation="0 180 0">
 
           <!-- Ring -->
           <a-torus
-            radius="0.4"
-            radius-tubular="0.02"
+            radius="1.5"
+            radius-tubular="0.05"
             segments-tubular="48"
             color="#00ff00"
             rotation="90 0 0">
@@ -129,18 +128,18 @@
 
           <!-- Chevron left arm -->
           <a-box
-            width="0.03" height="0.03" depth="0.55"
+            width="0.08" height="0.08" depth="1.6"
             color="#00ff00"
-            position="-0.12 0 0.03"
-            rotation="0 -30 0">
+            position="-0.45 0 -0.1"
+            rotation="0 30 0">
           </a-box>
 
           <!-- Chevron right arm -->
           <a-box
-            width="0.03" height="0.03" depth="0.55"
+            width="0.08" height="0.08" depth="1.6"
             color="#00ff00"
-            position="0.12 0 0.03"
-            rotation="0 30 0">
+            position="0.45 0 -0.1"
+            rotation="0 -30 0">
           </a-box>
 
         </a-entity>
