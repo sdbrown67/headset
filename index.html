@@ -141,13 +141,13 @@
 
   </a-entity>
 
-  <!-- DEBUG PANEL: big box + text in world space, right in front of start position -->
-  <a-plane id="debug-bg" position="0 2 2" width="3" height="2" color="#000000"></a-plane>
+  <!-- DEBUG PANEL: in front of player start (rig is at z=5, facing -z) -->
+  <a-plane id="debug-bg" position="0 2 -2" width="5" height="3" color="#000000"></a-plane>
   <a-text id="debug-text"
     value="loading..."
-    position="-1.4 2.8 2.01"
+    position="-2.4 3.4 -1.99"
     color="#00ff00"
-    width="3"
+    width="5"
     wrap-count="35"
     align="left">
   </a-text>
