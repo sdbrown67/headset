@@ -119,10 +119,15 @@
         let axisY = 0;
 
         if (this.system && this.system.controllers) {
+          let offset = 0;
           for (const ctrl of this.system.controllers) {
-            if (ctrl.handedness === 'right' && ctrl.gamepad && ctrl.gamepad.axes) {
-              axisY = ctrl.gamepad.axes[3] || 0;
-              break;
+            if (ctrl.gamepad && ctrl.gamepad.axes) {
+              // axis index 7 = right joystick Y (confirmed via debug bars)
+              const localIdx = 7 - offset;
+              if (localIdx >= 0 && localIdx < ctrl.gamepad.axes.length) {
+                axisY = ctrl.gamepad.axes[localIdx];
+              }
+              offset += ctrl.gamepad.axes.length;
             }
           }
         }
@@ -168,16 +173,10 @@
     vertical-controls
     position="0 0 5">
 
-    <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false" look-controls>
-      <!-- Big red test box locked to camera view -->
-      <a-box position="0 0 -3" width="1" height="1" depth="0.1" color="#ff0000"></a-box>
-    </a-camera>
+    <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false" look-controls></a-camera>
 
-    <!-- AXIS DEBUG BARS — attached to rig, always in front of you -->
-    <!-- 8 grey track boxes + 8 coloured fill bars, centred at eye level 1.5m ahead -->
+    <!-- AXIS DEBUG BARS (commented out, kept for future debugging)
     <a-entity axis-bars position="-1.05 1.6 -1.5">
-
-      <!-- Track boxes (static grey background) -->
       <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="0.00 0 0"></a-box>
       <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="0.32 0 0"></a-box>
       <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="0.64 0 0"></a-box>
@@ -186,8 +185,6 @@
       <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="1.60 0 0"></a-box>
       <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="1.92 0 0"></a-box>
       <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="2.24 0 0"></a-box>
-
-      <!-- Fill bars (driven by axis-bars component) -->
       <a-box id="bar0" width="0.30" height="0.06" depth="0.01" color="#888888" position="0.00 0 0.005"></a-box>
       <a-box id="bar1" width="0.30" height="0.06" depth="0.01" color="#888888" position="0.32 0 0.005"></a-box>
       <a-box id="bar2" width="0.30" height="0.06" depth="0.01" color="#888888" position="0.64 0 0.005"></a-box>
@@ -196,8 +193,8 @@
       <a-box id="bar5" width="0.30" height="0.06" depth="0.01" color="#888888" position="1.60 0 0.005"></a-box>
       <a-box id="bar6" width="0.30" height="0.06" depth="0.01" color="#888888" position="1.92 0 0.005"></a-box>
       <a-box id="bar7" width="0.30" height="0.06" depth="0.01" color="#888888" position="2.24 0 0.005"></a-box>
-
     </a-entity>
+    -->
 
     <!-- DIRECTION INDICATOR -->
     <a-entity id="indicator" position="0 0.02 0">
