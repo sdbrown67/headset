@@ -2,9 +2,10 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>VR Flight Test</title>
+  <title>VR Scene with Controllers</title>
 
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.6.0/dist/aframe-extras.min.js"></script>
 
   <script>
     AFRAME.registerComponent('floor-grid', {
@@ -35,63 +36,6 @@
       }
     });
 
-    AFRAME.registerComponent('vr-locomotion', {
-      init() {
-        this.moveSpeed = 0.05;
-        this.turnSpeed = 2.0;
-        this.rigYaw    = 0;
-        this._fwd   = new THREE.Vector3();
-        this._right = new THREE.Vector3();
-        this._up    = new THREE.Vector3(0, 1, 0);
-        this._q     = new THREE.Quaternion();
-      },
-
-      tick() {
-        const session = this.el.sceneEl.xrSession;
-        if (!session) return;
-
-        let moveX = 0;
-        let moveZ = 0;
-        let turnX = 0;
-
-        for (const source of session.inputSources) {
-          if (!source.gamepad || !source.handedness) continue;
-          const axes = source.gamepad.axes;
-          if (source.handedness === 'left') {
-            moveX = axes[2] || 0;
-            moveZ = axes[3] || 0;
-          }
-          if (source.handedness === 'right') {
-            turnX = axes[2] || 0;
-          }
-        }
-
-        // Accumulate yaw and apply to turn-rig
-        this.rigYaw -= turnX * this.turnSpeed;
-        const turnRig = document.querySelector('#turn-rig');
-        if (!turnRig) return;
-        turnRig.object3D.rotation.set(0, THREE.MathUtils.degToRad(this.rigYaw), 0);
-
-        // Get forward and right directly from turn-rig's world quaternion.
-        // This bypasses all trig and is always correct.
-        turnRig.object3D.updateMatrixWorld(true);
-        turnRig.object3D.getWorldQuaternion(this._q);
-
-        // Local forward is -Z, local right is +X
-        this._fwd.set(0, 0, -1).applyQuaternion(this._q);
-        this._fwd.y = 0;
-        this._fwd.normalize();
-
-        this._right.set(1, 0, 0).applyQuaternion(this._q);
-        this._right.y = 0;
-        this._right.normalize();
-
-        const pos = this.el.object3D.position;
-        // axes[3] negative = stick forward → negate moveZ to get positive forward contribution
-        pos.addScaledVector(this._fwd,  -moveZ * this.moveSpeed);
-        pos.addScaledVector(this._right, moveX * this.moveSpeed);
-      }
-    });
   </script>
 </head>
 
@@ -110,53 +54,44 @@
     color="#222">
   </a-plane>
 
-  <!-- PLAYER -->
-  <a-entity id="move-rig" vr-locomotion position="0 0 5">
-    <a-entity id="turn-rig">
+  <!-- PLAYER - aframe-extras movement-controls handles Quest joysticks automatically -->
+  <a-entity id="rig"
+    movement-controls="controls: gamepad; speed: 0.15;"
+    position="0 0 5">
 
-      <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false"></a-camera>
+    <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false" look-controls></a-camera>
 
-      <!-- Direction indicator: flat on floor below player, chevron points forward -->
-      <a-entity id="indicator" position="0 0.02 0">
+    <!-- Direction indicator: flat on floor below player, chevron points forward -->
+    <a-entity id="indicator" position="0 0.02 0">
+      <a-entity rotation="0 180 0">
 
-        <a-entity rotation="0 180 0">
+        <!-- Ring — thin -->
+        <a-torus radius="1.5" radius-tubular="0.02" segments-tubular="64" color="#00ff00" rotation="90 0 0"></a-torus>
 
-          <!-- Ring -->
-          <a-torus
-            radius="1.5"
-            radius-tubular="0.05"
-            segments-tubular="48"
-            color="#00ff00"
-            rotation="90 0 0">
-          </a-torus>
+        <!-- Chevron left arm — thin, tip meets circle at front, base meets circle at back corners -->
+        <a-box width="0.02" height="0.02" depth="1.74"
+          color="#00ff00"
+          position="-0.62 0 -0.18"
+          rotation="0 21 0">
+        </a-box>
 
-          <!-- Chevron left arm -->
-          <a-box
-            width="0.08" height="0.08" depth="1.6"
-            color="#00ff00"
-            position="-0.45 0 -0.1"
-            rotation="0 30 0">
-          </a-box>
+        <!-- Chevron right arm — thin, tip meets circle at front, base meets circle at back corners -->
+        <a-box width="0.02" height="0.02" depth="1.74"
+          color="#00ff00"
+          position="0.62 0 -0.18"
+          rotation="0 -21 0">
+        </a-box>
 
-          <!-- Chevron right arm -->
-          <a-box
-            width="0.08" height="0.08" depth="1.6"
-            color="#00ff00"
-            position="0.45 0 -0.1"
-            rotation="0 -30 0">
-          </a-box>
-
-        </a-entity>
       </a-entity>
-
     </a-entity>
+
   </a-entity>
 
   <!-- COMPASS LABELS -->
-  <a-entity compass-label="value: N" position="0 5 -40"></a-entity>
-  <a-entity compass-label="value: S" position="0 5 40"  rotation="0 180 0"></a-entity>
-  <a-entity compass-label="value: E" position="40 5 0"  rotation="0 -90 0"></a-entity>
-  <a-entity compass-label="value: W" position="-40 5 0" rotation="0 90 0"></a-entity>
+  <a-entity compass-label="value: N" position="0 5 -80"></a-entity>
+  <a-entity compass-label="value: S" position="0 5 80"  rotation="0 180 0"></a-entity>
+  <a-entity compass-label="value: E" position="80 5 0"  rotation="0 -90 0"></a-entity>
+  <a-entity compass-label="value: W" position="-80 5 0" rotation="0 90 0"></a-entity>
 
   <!-- LIGHTING -->
   <a-light type="ambient"     intensity="0.8"></a-light>
