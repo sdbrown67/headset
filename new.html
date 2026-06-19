@@ -37,23 +37,23 @@
     });
 
     /* Load Scene From Json */
-    fetch("scene.json")
-      .then(res => res.json())
-      .then(objects => {
-        const scene = document.querySelector("a-scene");
+    document.addEventListener('DOMContentLoaded', () => {
+      const scene = document.querySelector("a-scene");
 
-        objects.forEach(obj => {
-          const el = document.createElement("a-entity");
-
-          el.setAttribute("gltf-model", obj.url);
-          el.setAttribute("position", obj.position);
-          el.setAttribute("rotation", obj.rotation);
-          el.setAttribute("scale", obj.scale);
-
-          scene.appendChild(el);
-        });
-      })
-      .catch(err => console.error("scene.json failed:", err));
+      fetch("scene.json")
+        .then(res => res.json())
+        .then(objects => {
+          objects.forEach(obj => {
+            const el = document.createElement("a-entity");
+            el.setAttribute("gltf-model", obj.url);
+            el.setAttribute("position", obj.position);
+            el.setAttribute("rotation", obj.rotation);
+            el.setAttribute("scale", obj.scale);
+            scene.appendChild(el);
+          });
+        })
+        .catch(err => console.error("scene.json failed:", err));
+    });
 
   </script>
 </head>
