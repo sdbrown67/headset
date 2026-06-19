@@ -40,6 +40,10 @@
         this.moveSpeed = 0.05;
         this.turnSpeed = 2.0;
         this.rigYaw    = 0;
+        this._fwd   = new THREE.Vector3();
+        this._right = new THREE.Vector3();
+        this._up    = new THREE.Vector3(0, 1, 0);
+        this._q     = new THREE.Quaternion();
       },
 
       tick() {
@@ -62,23 +66,30 @@
           }
         }
 
-        this.rigYaw = (this.rigYaw - turnX * this.turnSpeed);
-
+        // Accumulate yaw and apply to turn-rig
+        this.rigYaw -= turnX * this.turnSpeed;
         const turnRig = document.querySelector('#turn-rig');
-        if (turnRig) {
-          turnRig.object3D.rotation.set(0, THREE.MathUtils.degToRad(this.rigYaw), 0);
-        }
+        if (!turnRig) return;
+        turnRig.object3D.rotation.set(0, THREE.MathUtils.degToRad(this.rigYaw), 0);
 
-        // Original working math restored exactly from commit 2561cb0
-        const angle = THREE.MathUtils.degToRad(this.rigYaw);
-        const fwdX =  Math.sin(angle);
-        const fwdZ = -Math.cos(angle);
-        const rgtX =  Math.cos(angle);
-        const rgtZ =  Math.sin(angle);
+        // Get forward and right directly from turn-rig's world quaternion.
+        // This bypasses all trig and is always correct.
+        turnRig.object3D.updateMatrixWorld(true);
+        turnRig.object3D.getWorldQuaternion(this._q);
+
+        // Local forward is -Z, local right is +X
+        this._fwd.set(0, 0, -1).applyQuaternion(this._q);
+        this._fwd.y = 0;
+        this._fwd.normalize();
+
+        this._right.set(1, 0, 0).applyQuaternion(this._q);
+        this._right.y = 0;
+        this._right.normalize();
 
         const pos = this.el.object3D.position;
-        pos.x += (fwdX * -moveZ + rgtX * moveX) * this.moveSpeed;
-        pos.z += (fwdZ * -moveZ + rgtZ * moveX) * this.moveSpeed;
+        // axes[3] negative = stick forward → negate moveZ to get positive forward contribution
+        pos.addScaledVector(this._fwd,  -moveZ * this.moveSpeed);
+        pos.addScaledVector(this._right, moveX * this.moveSpeed);
       }
     });
   </script>
