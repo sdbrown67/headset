@@ -36,42 +36,6 @@
       }
     });
 
-    AFRAME.registerComponent('gamepad-debug', {
-      init() {
-        this.textEl = document.createElement('a-text');
-        this.textEl.setAttribute('color', '#00ff00');
-        this.textEl.setAttribute('width', '1.5');
-        this.textEl.setAttribute('align', 'left');
-        this.textEl.setAttribute('wrap-count', '40');
-        this.el.appendChild(this.textEl);
-        this.tick = AFRAME.utils.throttleTick(this.tick, 200, this);
-      },
-      tick() {
-        const lines = [];
-        const system = this.el.sceneEl.systems['tracked-controls']
-                    || this.el.sceneEl.systems['tracked-controls-webxr'];
-
-        if (system && system.controllers && system.controllers.length) {
-          system.controllers.forEach((ctrl, i) => {
-            const gp = ctrl.gamepad;
-            if (!gp) return;
-            lines.push(`XR[${i}] ${ctrl.handedness}`);
-            lines.push(`axes: ${Array.from(gp.axes).map(a=>a.toFixed(2)).join(' ')}`);
-          });
-        } else {
-          lines.push('No XR controllers');
-        }
-
-        Array.from(navigator.getGamepads ? navigator.getGamepads() : []).forEach((gp, i) => {
-          if (!gp) return;
-          lines.push(`GP[${i}]`);
-          lines.push(`axes: ${Array.from(gp.axes).map(a=>a.toFixed(2)).join(' ')}`);
-        });
-
-        if (!lines.length) lines.push('No input');
-        this.textEl.setAttribute('value', lines.join('\n'));
-      }
-    });
 
     AFRAME.registerComponent('vertical-controls', {
       schema: {
@@ -149,11 +113,6 @@
     position="0 0 5">
 
     <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false" look-controls>
-      <!-- Debug panel: floats in front of you in VR -->
-      <a-entity position="0 0.2 -1.2">
-        <a-plane width="1.6" height="0.8" color="#000000" opacity="0.7"></a-plane>
-        <a-entity gamepad-debug position="-0.7 0.3 0.01"></a-entity>
-      </a-entity>
     </a-camera>
 
     <!-- Direction indicator: flat on floor below player, chevron points forward -->
@@ -182,6 +141,17 @@
 
   </a-entity>
 
+  <!-- DEBUG PANEL: big box + text in world space, right in front of start position -->
+  <a-plane id="debug-bg" position="0 2 2" width="3" height="2" color="#000000"></a-plane>
+  <a-text id="debug-text"
+    value="loading..."
+    position="-1.4 2.8 2.01"
+    color="#00ff00"
+    width="3"
+    wrap-count="35"
+    align="left">
+  </a-text>
+
   <!-- COMPASS LABELS -->
   <a-entity compass-label="value: N" position="0 5 -256"></a-entity>
   <a-entity compass-label="value: S" position="0 5 256"  rotation="0 180 0"></a-entity>
@@ -194,5 +164,37 @@
 
 </a-scene>
 
+</body>
+
+<script>
+  setInterval(() => {
+    const el = document.getElementById('debug-text');
+    if (!el) return;
+    const lines = [];
+
+    const scene = document.querySelector('a-scene');
+    const system = scene && (scene.systems['tracked-controls'] || scene.systems['tracked-controls-webxr']);
+
+    if (system && system.controllers && system.controllers.length) {
+      system.controllers.forEach((ctrl, i) => {
+        const gp = ctrl.gamepad;
+        if (!gp) { lines.push(`XR[${i}] no gamepad`); return; }
+        lines.push(`XR[${i}] ${ctrl.handedness}`);
+        lines.push(`  ${Array.from(gp.axes).map((a,j)=>`a${j}:${a.toFixed(2)}`).join(' ')}`);
+      });
+    } else {
+      lines.push('No XR controllers');
+    }
+
+    Array.from(navigator.getGamepads ? navigator.getGamepads() : []).forEach((gp, i) => {
+      if (!gp) return;
+      lines.push(`GP[${i}]`);
+      lines.push(`  ${Array.from(gp.axes).map((a,j)=>`a${j}:${a.toFixed(2)}`).join(' ')}`);
+    });
+
+    if (!lines.length) lines.push('No input found');
+    el.setAttribute('value', lines.join('\n'));
+  }, 300);
+</script>
 </body>
 </html>
