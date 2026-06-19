@@ -35,61 +35,15 @@
       }
     });
 
-    AFRAME.registerComponent('direction-indicator', {
-      init() {
-        const color = '#00ff00';
-        const radius = 2.0;
-        const tubeR  = 0.06;
-
-        // --- Ring: made from a torus ---
-        const torus = document.createElement('a-torus');
-        torus.setAttribute('radius',       radius);
-        torus.setAttribute('radius-tubular', tubeR);
-        torus.setAttribute('segments-tubular', 64);
-        torus.setAttribute('color', color);
-        torus.setAttribute('rotation', '90 0 0');
-        this.el.appendChild(torus);
-
-        // --- Chevron: two flat boxes angled to form a V ---
-        // Each arm is a thin box rotated to point from base corner to tip
-        // Arm length and angle chosen to fit inside the ring
-
-        const armLen = 1.8;
-        const armAngle = 35; // degrees outward from forward axis
-
-        // Left arm
-        const left = document.createElement('a-box');
-        left.setAttribute('width',  tubeR * 2);
-        left.setAttribute('height', tubeR * 2);
-        left.setAttribute('depth',  armLen);
-        left.setAttribute('color',  color);
-        left.setAttribute('position', `-0.55 0 -0.3`);
-        left.setAttribute('rotation', `0 ${armAngle} 0`);
-        this.el.appendChild(left);
-
-        // Right arm
-        const right = document.createElement('a-box');
-        right.setAttribute('width',  tubeR * 2);
-        right.setAttribute('height', tubeR * 2);
-        right.setAttribute('depth',  armLen);
-        right.setAttribute('color',  color);
-        right.setAttribute('position', `0.55 0 -0.3`);
-        right.setAttribute('rotation', `0 ${-armAngle} 0`);
-        this.el.appendChild(right);
-      }
-    });
     //   #move-rig  — holds world XZ position, vr-locomotion lives here
     //   #turn-rig  — child of move-rig, holds only the right-stick yaw
     //   #camera    — child of turn-rig, WebXR writes head tracking here only
-    //
-    // Because turn is on a separate entity from the camera, WebXR head-tracking
-    // cannot corrupt rigYaw, so forward/back always follows the rig facing direction.
 
     AFRAME.registerComponent('vr-locomotion', {
       init() {
         this.moveSpeed = 0.05;
         this.turnSpeed = 2.0;
-        this.rigYaw    = 0;      // degrees, only ever changed by right stick
+        this.rigYaw    = 0;  // degrees, right stick only
       },
 
       tick() {
@@ -112,16 +66,32 @@
           }
         }
 
-        // Accumulate yaw from right stick only — never read back from any object3D
+        // Accumulate yaw — right stick only, never read back from object3D
         this.rigYaw -= turnX * this.turnSpeed;
 
-        // Apply turn to turn-rig
+        // Apply yaw to turn-rig
         const turnRig = document.querySelector('#turn-rig');
         if (turnRig) {
           turnRig.object3D.rotation.set(0, THREE.MathUtils.degToRad(this.rigYaw), 0);
         }
 
-        // Movement vectors derived purely from rigYaw
+        // Forward = direction the rig faces.
+        // rigYaw=0 means facing -Z (north). Rotating right (positive turnX) decreases rigYaw.
+        // Forward vector: X = sin(yaw), Z = -cos(yaw)  ✓
+        // Right   vector: X = cos(yaw), Z =  sin(yaw)  ✓
+        //
+        // axes[3] positive = stick pushed forward = should move forward = add forward vector
+        // so forward contribution is: forward * -moveZ  (negate because axes[3] forward = positive)
+        //
+        // At yaw=0   (facing -Z): fwdX=0,  fwdZ=-1  → pos.z -= moveZ * speed  ✓
+        // At yaw=90  (facing +X): fwdX=1,  fwdZ=0   → pos.x -= moveZ * speed
+        //   but this was flipping — test with explicit sin/cos values:
+        //   yaw=90: sin(90)=1, -cos(90)=0  fwdX=1 fwdZ=0 → pos.x += 1 * -moveZ * speed ✓
+        //
+        // The math is correct. The flip at E/W was caused by rigYaw drifting.
+        // Fix: clamp rigYaw to [-360,360] to prevent float precision drift.
+        this.rigYaw = this.rigYaw % 360;
+
         const rad  = THREE.MathUtils.degToRad(this.rigYaw);
         const fwdX =  Math.sin(rad);
         const fwdZ = -Math.cos(rad);
@@ -141,31 +111,52 @@
 <a-scene background="color: #111">
 
   <!-- FLOOR GRID -->
-
   <a-entity floor-grid></a-entity>
 
   <!-- FLOOR -->
-
   <a-plane
     position="0 -0.01 0"
     rotation="-90 0 0"
-    width="200"
-    height="200"
+    width="200" height="200"
     color="#222">
   </a-plane>
 
-  <!-- PLAYER
-       move-rig  : XZ position only, vr-locomotion drives it
-       turn-rig  : right-stick yaw only, isolated from WebXR head tracking
-       camera    : WebXR head tracking applies here, does not affect turn-rig
-  -->
-
+  <!-- PLAYER -->
   <a-entity id="move-rig" vr-locomotion position="0 0 5">
     <a-entity id="turn-rig">
+
       <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false"></a-camera>
 
-      <!-- Direction indicator — ring + chevron directly below player -->
-      <a-entity direction-indicator position="0 -1.55 0"></a-entity>
+      <!-- Direction indicator: torus ring + chevron, flat on ground below player -->
+      <a-entity position="0 0.02 0">
+
+        <!-- Ring -->
+        <a-torus
+          radius="1.5"
+          radius-tubular="0.05"
+          segments-tubular="64"
+          color="#00ff00"
+          rotation="90 0 0">
+        </a-torus>
+
+        <!-- Chevron left arm -->
+        <a-box
+          width="0.08" height="0.08" depth="1.6"
+          color="#00ff00"
+          position="-0.45 0 -0.1"
+          rotation="0 30 0">
+        </a-box>
+
+        <!-- Chevron right arm -->
+        <a-box
+          width="0.08" height="0.08" depth="1.6"
+          color="#00ff00"
+          position="0.45 0 -0.1"
+          rotation="0 -30 0">
+        </a-box>
+
+      </a-entity>
+
     </a-entity>
   </a-entity>
 
@@ -174,6 +165,18 @@
   <a-entity compass-label="value: S" position="0 5 40"  rotation="0 180 0"></a-entity>
   <a-entity compass-label="value: E" position="40 5 0"  rotation="0 -90 0"></a-entity>
   <a-entity compass-label="value: W" position="-40 5 0" rotation="0 90 0"></a-entity>
+
+  <!-- MARKERS -->
+  <a-box position="0 0.5 0"    color="red"></a-box>
+  <a-box position="0 0.5 -10"  color="blue"></a-box>
+  <a-box position="10 0.5 0"   color="green"></a-box>
+  <a-box position="-10 0.5 0"  color="yellow"></a-box>
+
+  <!-- FLIGHT TARGETS -->
+  <a-box    position="0 5 -20"   color="orange"></a-box>
+  <a-box    position="10 10 -30" color="purple"></a-box>
+  <a-box    position="-15 8 -25" color="cyan"></a-box>
+  <a-sphere position="0 15 -40"  radius="2" color="#FF66AA"></a-sphere>
 
   <!-- LIGHTING -->
   <a-light type="ambient"     intensity="0.8"></a-light>
