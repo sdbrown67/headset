@@ -35,15 +35,11 @@
       }
     });
 
-    //   #move-rig  — holds world XZ position, vr-locomotion lives here
-    //   #turn-rig  — child of move-rig, holds only the right-stick yaw
-    //   #camera    — child of turn-rig, WebXR writes head tracking here only
-
     AFRAME.registerComponent('vr-locomotion', {
       init() {
         this.moveSpeed = 0.05;
         this.turnSpeed = 2.0;
-        this.rigYaw    = 0;  // degrees, right stick only
+        this.rigYaw    = 0;
       },
 
       tick() {
@@ -66,33 +62,21 @@
           }
         }
 
-        // Accumulate yaw — right stick only, never read back from object3D
-        this.rigYaw -= turnX * this.turnSpeed;
+        this.rigYaw = (this.rigYaw - turnX * this.turnSpeed) % 360;
 
-        // Apply yaw to turn-rig
         const turnRig = document.querySelector('#turn-rig');
         if (turnRig) {
           turnRig.object3D.rotation.set(0, THREE.MathUtils.degToRad(this.rigYaw), 0);
         }
 
-        // Forward = direction the rig faces.
-        // rigYaw=0 means facing -Z (north). Rotating right (positive turnX) decreases rigYaw.
-        // Forward vector: X = sin(yaw), Z = -cos(yaw)  ✓
-        // Right   vector: X = cos(yaw), Z =  sin(yaw)  ✓
-        //
-        // axes[3] positive = stick pushed forward = should move forward = add forward vector
-        // so forward contribution is: forward * -moveZ  (negate because axes[3] forward = positive)
-        //
-        // At yaw=0   (facing -Z): fwdX=0,  fwdZ=-1  → pos.z -= moveZ * speed  ✓
-        // At yaw=90  (facing +X): fwdX=1,  fwdZ=0   → pos.x -= moveZ * speed
-        //   but this was flipping — test with explicit sin/cos values:
-        //   yaw=90: sin(90)=1, -cos(90)=0  fwdX=1 fwdZ=0 → pos.x += 1 * -moveZ * speed ✓
-        //
-        // The math is correct. The flip at E/W was caused by rigYaw drifting.
-        // Fix: clamp rigYaw to [-360,360] to prevent float precision drift.
-        this.rigYaw = this.rigYaw % 360;
+        // rigYaw=0 → facing -Z (north).
+        // Quest axes[3]: push forward = NEGATIVE value (verified from index.html working code)
+        // index.html uses:  pos.x += fwdX * -moveZ   which works there
+        // The flip at E/W means rigYaw is accumulating wrongly.
+        // Root fix: sync rigYaw to actual turn-rig rotation each frame instead of accumulating.
+        const actualYaw = THREE.MathUtils.radToDeg(turnRig ? turnRig.object3D.rotation.y : 0);
+        const rad  = THREE.MathUtils.degToRad(actualYaw);
 
-        const rad  = THREE.MathUtils.degToRad(this.rigYaw);
         const fwdX =  Math.sin(rad);
         const fwdZ = -Math.cos(rad);
         const rgtX =  Math.cos(rad);
@@ -127,34 +111,39 @@
 
       <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false"></a-camera>
 
-      <!-- Direction indicator: torus ring + chevron, flat on ground below player -->
-      <a-entity position="0 0.02 0">
+      <!-- Direction indicator attached to camera so it tilts with head look-down -->
+      <!-- Positioned 1.5m in front at chest height so glancing down shows it -->
+      <a-entity id="indicator" position="0 1.6 0">
 
-        <!-- Ring -->
-        <a-torus
-          radius="1.5"
-          radius-tubular="0.05"
-          segments-tubular="64"
-          color="#00ff00"
-          rotation="90 0 0">
-        </a-torus>
+        <!-- Tilted 60deg so player sees it by glancing slightly downward -->
+        <a-entity rotation="-60 0 0" position="0 0 -1.2">
 
-        <!-- Chevron left arm -->
-        <a-box
-          width="0.08" height="0.08" depth="1.6"
-          color="#00ff00"
-          position="-0.45 0 -0.1"
-          rotation="0 30 0">
-        </a-box>
+          <!-- Ring -->
+          <a-torus
+            radius="0.4"
+            radius-tubular="0.02"
+            segments-tubular="48"
+            color="#00ff00"
+            rotation="90 0 0">
+          </a-torus>
 
-        <!-- Chevron right arm -->
-        <a-box
-          width="0.08" height="0.08" depth="1.6"
-          color="#00ff00"
-          position="0.45 0 -0.1"
-          rotation="0 -30 0">
-        </a-box>
+          <!-- Chevron left arm -->
+          <a-box
+            width="0.03" height="0.03" depth="0.55"
+            color="#00ff00"
+            position="-0.12 0 -0.03"
+            rotation="0 30 0">
+          </a-box>
 
+          <!-- Chevron right arm -->
+          <a-box
+            width="0.03" height="0.03" depth="0.55"
+            color="#00ff00"
+            position="0.12 0 -0.03"
+            rotation="0 -30 0">
+          </a-box>
+
+        </a-entity>
       </a-entity>
 
     </a-entity>
