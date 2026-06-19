@@ -62,7 +62,7 @@
           }
         }
 
-        this.rigYaw = (this.rigYaw + turnX * this.turnSpeed) % 360;
+        this.rigYaw = ((this.rigYaw + turnX * this.turnSpeed) % 360 + 360) % 360;
 
         const turnRig = document.querySelector('#turn-rig');
         if (turnRig) {
