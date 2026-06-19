@@ -62,29 +62,31 @@
           }
         }
 
-        this.rigYaw = ((this.rigYaw + turnX * this.turnSpeed) % 360 + 360) % 360;
+        this.rigYaw = ((this.rigYaw - turnX * this.turnSpeed) % 360 + 360) % 360;
 
         const turnRig = document.querySelector('#turn-rig');
         if (turnRig) {
           turnRig.object3D.rotation.set(0, THREE.MathUtils.degToRad(this.rigYaw), 0);
         }
 
-        // rigYaw=0 → facing -Z (north).
-        // Quest axes[3]: push forward = NEGATIVE value (verified from index.html working code)
-        // index.html uses:  pos.x += fwdX * -moveZ   which works there
-        // The flip at E/W means rigYaw is accumulating wrongly.
-        // Root fix: sync rigYaw to actual turn-rig rotation each frame instead of accumulating.
         const actualYaw = THREE.MathUtils.radToDeg(turnRig ? turnRig.object3D.rotation.y : 0);
         const rad  = THREE.MathUtils.degToRad(actualYaw);
 
-        const fwdX =  Math.sin(rad);
-        const fwdZ = -Math.cos(rad);
+        // yaw=0 → north (-Z). fwdZ must be -1 at yaw=0 for +moveZ to move toward -Z.
+        // BUT N/S is reversed, so flip: fwdZ = +cos, fwdX = -sin
+        // At yaw=0:  fwdX=-sin(0)=0,  fwdZ=+cos(0)=+1 → moveZ positive moves +Z (south) ✗
+        // Stick forward on Quest = axes[3] negative, so moveZ is negative when pushing forward.
+        // pos.z += fwdZ * moveZ = +1 * -1 = -1 → moves toward -Z (north) ✓
+        // At yaw=90 (east): fwdX=-sin(90)=-1, fwdZ=cos(90)=0
+        // pos.x += fwdX * moveZ = -1 * -1 = +1 → moves toward +X (east) ✓
+        const fwdX = -Math.sin(rad);
+        const fwdZ =  Math.cos(rad);
         const rgtX =  Math.cos(rad);
         const rgtZ =  Math.sin(rad);
 
         const pos = this.el.object3D.position;
-        pos.x += (fwdX * moveZ + rgtX * moveX) * this.moveSpeed;
-        pos.z += (fwdZ * moveZ + rgtZ * moveX) * this.moveSpeed;
+        pos.x += (fwdX * moveZ - rgtX * moveX) * this.moveSpeed;
+        pos.z += (fwdZ * moveZ - rgtZ * moveX) * this.moveSpeed;
       }
     });
   </script>
