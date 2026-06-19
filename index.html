@@ -168,7 +168,10 @@
     vertical-controls
     position="0 0 5">
 
-    <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false" look-controls></a-camera>
+    <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false" look-controls>
+      <!-- Big red test box locked to camera view -->
+      <a-box position="0 0 -3" width="1" height="1" depth="0.1" color="#ff0000"></a-box>
+    </a-camera>
 
     <!-- AXIS DEBUG BARS — attached to rig, always in front of you -->
     <!-- 8 grey track boxes + 8 coloured fill bars, centred at eye level 1.5m ahead -->
