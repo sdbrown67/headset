@@ -83,8 +83,8 @@
         const rgtZ =  Math.sin(rad);
 
         const pos = this.el.object3D.position;
-        pos.x += (fwdX * -moveZ + rgtX * moveX) * this.moveSpeed;
-        pos.z += (fwdZ * -moveZ + rgtZ * moveX) * this.moveSpeed;
+        pos.x += (fwdX * moveZ + rgtX * moveX) * this.moveSpeed;
+        pos.z += (fwdZ * moveZ + rgtZ * moveX) * this.moveSpeed;
       }
     });
   </script>
