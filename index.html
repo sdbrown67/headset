@@ -36,17 +36,63 @@
       }
     });
 
+    AFRAME.registerComponent('gamepad-debug', {
+      init() {
+        this.canvas = document.createElement('canvas');
+        this.canvas.width = 512;
+        this.canvas.height = 512;
+        this.ctx = this.canvas.getContext('2d');
+        this.texture = new THREE.CanvasTexture(this.canvas);
+        const mat = new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, side: THREE.DoubleSide });
+        const geo = new THREE.PlaneGeometry(1, 1);
+        this.el.object3D.add(new THREE.Mesh(geo, mat));
+        this.tick = AFRAME.utils.throttleTick(this.tick, 100, this);
+      },
+      tick() {
+        const ctx = this.ctx;
+        ctx.fillStyle = 'rgba(0,0,0,0.8)';
+        ctx.fillRect(0, 0, 512, 512);
+        ctx.fillStyle = '#00ff00';
+        ctx.font = '22px monospace';
+
+        const lines = [];
+        const system = this.el.sceneEl.systems['tracked-controls']
+                    || this.el.sceneEl.systems['tracked-controls-webxr'];
+
+        if (system && system.controllers && system.controllers.length) {
+          system.controllers.forEach((ctrl, i) => {
+            const gp = ctrl.gamepad;
+            if (!gp) return;
+            lines.push(`XR[${i}] hand=${ctrl.handedness}`);
+            lines.push(`  axes: ${Array.from(gp.axes).map(a=>a.toFixed(2)).join(', ')}`);
+          });
+        } else {
+          lines.push('No XR controllers');
+        }
+
+        const navGPs = navigator.getGamepads ? navigator.getGamepads() : [];
+        Array.from(navGPs).forEach((gp, i) => {
+          if (!gp) return;
+          lines.push(`NAV[${i}] ${gp.id.slice(0,20)}`);
+          lines.push(`  axes: ${Array.from(gp.axes).map(a=>a.toFixed(2)).join(', ')}`);
+        });
+
+        if (!lines.length) lines.push('No gamepads detected');
+
+        lines.forEach((l, i) => ctx.fillText(l, 10, 30 + i * 28));
+        this.texture.needsUpdate = true;
+      }
+    });
+
     AFRAME.registerComponent('vertical-controls', {
       schema: {
         speed:    { type: 'number', default: 0.05 },
         deadzone: { type: 'number', default: 0.2 }
       },
       init() {
-        // Use the same tracked-controls system that aframe-extras uses
         this.system = null;
       },
       tick() {
-        // Lazy-init the system reference
         if (!this.system) {
           this.system = this.el.sceneEl.systems['tracked-controls']
                      || this.el.sceneEl.systems['tracked-controls-webxr']
@@ -55,33 +101,17 @@
 
         let axisY = 0;
 
-        // Try XR controllers first (Quest / xr-standard mapping)
         if (this.system && this.system.controllers && this.system.controllers.length) {
           for (const ctrl of this.system.controllers) {
             if (ctrl.handedness === 'right' && ctrl.gamepad) {
-              const gp = ctrl.gamepad;
-              // xr-standard: axes[2]=X, axes[3]=Y on each controller's own gamepad
-              axisY = (gp.axes && gp.axes[3] !== undefined) ? gp.axes[3] : 0;
-              break;
-            }
-          }
-        }
-
-        // Fallback: navigator.getGamepads (non-XR / desktop testing)
-        if (axisY === 0) {
-          const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-          for (const gp of gamepads) {
-            if (!gp) continue;
-            if (gp.hand === 'right' || (!gp.hand && gamepads.indexOf(gp) === 1)) {
-              axisY = gp.axes[3] !== undefined ? gp.axes[3] : 0;
+              const axes = ctrl.gamepad.axes;
+              axisY = axes[3] !== undefined ? axes[3] : 0;
               break;
             }
           }
         }
 
         if (Math.abs(axisY) < this.data.deadzone) return;
-
-        // Forward (axisY > 0) = down, backward (axisY < 0) = up
         this.el.object3D.position.y -= axisY * this.data.speed;
       }
     });
@@ -129,7 +159,10 @@
     vertical-controls
     position="0 0 5">
 
-    <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false" look-controls></a-camera>
+    <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false" look-controls>
+      <!-- Debug panel: floats in front of you in VR -->
+      <a-entity gamepad-debug position="0 0 -1.5"></a-entity>
+    </a-camera>
 
     <!-- Direction indicator: flat on floor below player, chevron points forward -->
     <a-entity id="indicator" position="0 0.02 0">
