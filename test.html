@@ -64,9 +64,24 @@
     <!-- Direction indicator: flat on floor below player, chevron points forward -->
     <a-entity id="indicator" position="0 0.02 0">
       <a-entity rotation="0 180 0">
-        <a-torus radius="1.5" radius-tubular="0.05" segments-tubular="48" color="#00ff00" rotation="90 0 0"></a-torus>
-        <a-box width="0.08" height="0.08" depth="1.6" color="#00ff00" position="-0.45 0 -0.1" rotation="0 30 0"></a-box>
-        <a-box width="0.08" height="0.08" depth="1.6" color="#00ff00" position="0.45 0 -0.1" rotation="0 -30 0"></a-box>
+
+        <!-- Ring — thin -->
+        <a-torus radius="1.5" radius-tubular="0.02" segments-tubular="64" color="#00ff00" rotation="90 0 0"></a-torus>
+
+        <!-- Chevron left arm — thin, tip meets circle at front, base meets circle at back corners -->
+        <a-box width="0.02" height="0.02" depth="1.74"
+          color="#00ff00"
+          position="-0.62 0 -0.18"
+          rotation="0 21 0">
+        </a-box>
+
+        <!-- Chevron right arm -->
+        <a-box width="0.02" height="0.02" depth="1.74"
+          color="#00ff00"
+          position="0.62 0 -0.18"
+          rotation="0 -21 0">
+        </a-box>
+
       </a-entity>
     </a-entity>
 
