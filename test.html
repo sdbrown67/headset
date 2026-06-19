@@ -35,7 +35,48 @@
       }
     });
 
-    // Two-entity rig:
+    AFRAME.registerComponent('direction-indicator', {
+      init() {
+        const color = 0x00ff00;
+        const lineWidth = 1; // note: WebGL ignores linewidth > 1 on most platforms
+
+        // --- Ring ---
+        const ringGeo = new THREE.BufferGeometry();
+        const ringPoints = [];
+        const segments = 64;
+        const radius = 2.0;
+        for (let i = 0; i <= segments; i++) {
+          const a = (i / segments) * Math.PI * 2;
+          ringPoints.push(Math.cos(a) * radius, 0, Math.sin(a) * radius);
+        }
+        ringGeo.setAttribute('position', new THREE.Float32BufferAttribute(ringPoints, 3));
+        const ringMat = new THREE.LineBasicMaterial({ color });
+        const ring = new THREE.Line(ringGeo, ringMat);
+        this.el.object3D.add(ring);
+
+        // --- Chevron (open triangle — two lines from base corners to tip) ---
+        // Tip points forward (negative Z), base spans behind tip
+        const tipZ    = -1.6;
+        const baseZ   =  1.0;
+        const baseX   =  1.1;
+
+        // Left arm: base-left to tip
+        const leftGeo = new THREE.BufferGeometry();
+        leftGeo.setAttribute('position', new THREE.Float32BufferAttribute([
+          -baseX, 0, baseZ,
+           0,     0, tipZ
+        ], 3));
+        this.el.object3D.add(new THREE.Line(leftGeo, new THREE.LineBasicMaterial({ color })));
+
+        // Right arm: base-right to tip
+        const rightGeo = new THREE.BufferGeometry();
+        rightGeo.setAttribute('position', new THREE.Float32BufferAttribute([
+          baseX, 0, baseZ,
+          0,    0, tipZ
+        ], 3));
+        this.el.object3D.add(new THREE.Line(rightGeo, new THREE.LineBasicMaterial({ color })));
+      }
+    });
     //   #move-rig  — holds world XZ position, vr-locomotion lives here
     //   #turn-rig  — child of move-rig, holds only the right-stick yaw
     //   #camera    — child of turn-rig, WebXR writes head tracking here only
@@ -99,9 +140,11 @@
 <a-scene background="color: #111">
 
   <!-- FLOOR GRID -->
+
   <a-entity floor-grid></a-entity>
 
   <!-- FLOOR -->
+
   <a-plane
     position="0 -0.01 0"
     rotation="-90 0 0"
@@ -115,31 +158,14 @@
        turn-rig  : right-stick yaw only, isolated from WebXR head tracking
        camera    : WebXR head tracking applies here, does not affect turn-rig
   -->
+
   <a-entity id="move-rig" vr-locomotion position="0 0 5">
-
     <a-entity id="turn-rig">
-
       <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false"></a-camera>
 
-      <!-- Forward arrow — at eye level, always shows rig facing direction -->
-      <a-cylinder
-        position="0 1.6 -3"
-        radius="0.08"
-        height="2.5"
-        rotation="90 0 0"
-        color="#00FF00">
-      </a-cylinder>
-      <a-cone
-        position="0 1.6 -4.4"
-        radius-bottom="0.25"
-        radius-top="0"
-        height="0.8"
-        rotation="90 0 0"
-        color="#00FF00">
-      </a-cone>
-
+      <!-- Direction indicator — ring + chevron directly below player -->
+      <a-entity direction-indicator position="0 -1.55 0"></a-entity>
     </a-entity>
-
   </a-entity>
 
   <!-- COMPASS LABELS -->
@@ -147,18 +173,6 @@
   <a-entity compass-label="value: S" position="0 5 40"  rotation="0 180 0"></a-entity>
   <a-entity compass-label="value: E" position="40 5 0"  rotation="0 -90 0"></a-entity>
   <a-entity compass-label="value: W" position="-40 5 0" rotation="0 90 0"></a-entity>
-
-  <!-- ORIGIN MARKER -->
-  <a-box position="0 0.5 0"    color="red"></a-box>
-  <a-box position="0 0.5 -10"  color="blue"></a-box>
-  <a-box position="10 0.5 0"   color="green"></a-box>
-  <a-box position="-10 0.5 0"  color="yellow"></a-box>
-
-  <!-- FLIGHT TARGETS -->
-  <a-box    position="0 5 -20"    color="orange"></a-box>
-  <a-box    position="10 10 -30"  color="purple"></a-box>
-  <a-box    position="-15 8 -25"  color="cyan"></a-box>
-  <a-sphere position="0 15 -40"   radius="2" color="#FF66AA"></a-sphere>
 
   <!-- LIGHTING -->
   <a-light type="ambient"     intensity="0.8"></a-light>
