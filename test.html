@@ -62,7 +62,7 @@
           }
         }
 
-        this.rigYaw = (this.rigYaw - turnX * this.turnSpeed) % 360;
+        this.rigYaw = (this.rigYaw + turnX * this.turnSpeed) % 360;
 
         const turnRig = document.querySelector('#turn-rig');
         if (turnRig) {
@@ -83,8 +83,8 @@
         const rgtZ =  Math.sin(rad);
 
         const pos = this.el.object3D.position;
-        pos.x += (fwdX * moveZ + rgtX * moveX) * this.moveSpeed;
-        pos.z += (fwdZ * moveZ + rgtZ * moveX) * this.moveSpeed;
+        pos.x += (fwdX * -moveZ + rgtX * moveX) * this.moveSpeed;
+        pos.z += (fwdZ * -moveZ + rgtZ * moveX) * this.moveSpeed;
       }
     });
   </script>
@@ -111,10 +111,9 @@
 
       <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false"></a-camera>
 
-      <!-- Direction indicator attached to turn-rig, flat on floor below player -->
+      <!-- Direction indicator: flat on floor below player, chevron points forward -->
       <a-entity id="indicator" position="0 0.02 0">
 
-        <!-- Rotated 180 on Y so chevron points forward (-Z) -->
         <a-entity rotation="0 180 0">
 
           <!-- Ring -->
@@ -153,18 +152,6 @@
   <a-entity compass-label="value: S" position="0 5 40"  rotation="0 180 0"></a-entity>
   <a-entity compass-label="value: E" position="40 5 0"  rotation="0 -90 0"></a-entity>
   <a-entity compass-label="value: W" position="-40 5 0" rotation="0 90 0"></a-entity>
-
-  <!-- MARKERS -->
-  <a-box position="0 0.5 0"    color="red"></a-box>
-  <a-box position="0 0.5 -10"  color="blue"></a-box>
-  <a-box position="10 0.5 0"   color="green"></a-box>
-  <a-box position="-10 0.5 0"  color="yellow"></a-box>
-
-  <!-- FLIGHT TARGETS -->
-  <a-box    position="0 5 -20"   color="orange"></a-box>
-  <a-box    position="10 10 -30" color="purple"></a-box>
-  <a-box    position="-15 8 -25" color="cyan"></a-box>
-  <a-sphere position="0 15 -40"  radius="2" color="#FF66AA"></a-sphere>
 
   <!-- LIGHTING -->
   <a-light type="ambient"     intensity="0.8"></a-light>
