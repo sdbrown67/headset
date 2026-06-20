@@ -402,16 +402,6 @@
   <!-- FLOOR -->
   <a-plane position="0 -0.01 0" rotation="-90 0 0" width="200" height="200" color="#222"></a-plane>
 
-  <!-- CONTROLLERS — oculus-touch-controls fires proper thumbstickdown events -->
-  <a-entity id="left-ctrl"
-    oculus-touch-controls="hand: left"
-    left-ctrl-listener>
-  </a-entity>
-  <a-entity id="right-ctrl"
-    oculus-touch-controls="hand: right"
-    right-ctrl-listener>
-  </a-entity>
-
   <!-- PLAYER -->
   <a-entity id="rig"
     movement-controls="controls: gamepad; speed: 0.15;"
@@ -421,6 +411,16 @@
     position="0 0 5">
 
     <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false" look-controls></a-camera>
+
+    <!-- CONTROLLERS — children of rig so they move with the player -->
+    <a-entity id="left-ctrl"
+      oculus-touch-controls="hand: left"
+      left-ctrl-listener>
+    </a-entity>
+    <a-entity id="right-ctrl"
+      oculus-touch-controls="hand: right"
+      right-ctrl-listener>
+    </a-entity>
 
     <!-- AXIS DEBUG BARS + BUTTON INDICATORS (commented out, kept for future debugging)
     <a-entity axis-bars position="-1.05 1.6 -1.5">
