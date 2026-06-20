@@ -201,6 +201,23 @@
         return null;
       },
 
+      // Get a flat axis value by global index (same method as vertical-controls)
+      getFlatAxis(targetIndex) {
+        if (this.system && this.system.controllers) {
+          let offset = 0;
+          for (const ctrl of this.system.controllers) {
+            if (ctrl.gamepad && ctrl.gamepad.axes) {
+              const local = targetIndex - offset;
+              if (local >= 0 && local < ctrl.gamepad.axes.length) {
+                return ctrl.gamepad.axes[local];
+              }
+              offset += ctrl.gamepad.axes.length;
+            }
+          }
+        }
+        return 0;
+      },
+
       tick() {
         if (!this.system) {
           this.system = this.el.sceneEl.systems['tracked-controls']
@@ -216,24 +233,26 @@
         const btnDown = gp.buttons[4] && gp.buttons[4].pressed;
         if (btnDown && !this.btnWasDown) {
           if (!this.panelOpen) {
-            // Open panel
+            // Open panel — suppress movement
             this.panelOpen = true;
             this.panelMesh.visible = true;
+            this.el.setAttribute('movement-controls', 'enabled', false);
             this.drawPanel();
           } else {
-            // Confirm selection and close
+            // Confirm selection and close — restore movement
             this.selected = this.assets[this.highlighted];
             this.panelOpen = false;
             this.panelMesh.visible = false;
+            this.el.setAttribute('movement-controls', 'enabled', true);
             this.drawStatusBar();
             this.barMesh.visible = true;
           }
         }
         this.btnWasDown = btnDown;
 
-        // ── Left stick Y scroll (axis 1) — only while panel open ──
+        // ── Left stick Y scroll — axis index 1 in flat layout (left controller first) ──
         if (this.panelOpen) {
-          const axisY = gp.axes[1] || 0;
+          const axisY = this.getFlatAxis(1);
           const DEADZONE = 0.3;
           if (Math.abs(axisY) > DEADZONE) {
             this.scrollAccum += axisY * 0.05;
