@@ -368,126 +368,6 @@
       }
     });
 
-    /* ── Asset placer ──
-     *
-     *  Right stick click (flat button index 7)
-     *    → if asset selected and no ghost: spawn ghost 5m ahead of rig
-     *    → if ghost active: release ghost into world as real object
-     *
-     *  Ghost sits 5m in front of the rig at the asset's Y height,
-     *  inherits the rig's Y rotation so it always faces forward.
-     *  Rendered semi-transparent green.
-     */
-    AFRAME.registerComponent('asset-placer', {
-      init() {
-        this.system      = null;
-        this.ghostEl     = null;   // current ghost entity or null
-        this.btnWasDown  = false;
-        this.PLACE_DIST  = 5;      // metres in front of rig
-      },
-
-      getFlatButton(targetIndex) {
-        if (this.system && this.system.controllers) {
-          let offset = 0;
-          for (const ctrl of this.system.controllers) {
-            if (ctrl.gamepad && ctrl.gamepad.buttons) {
-              const local = targetIndex - offset;
-              if (local >= 0 && local < ctrl.gamepad.buttons.length) {
-                return ctrl.gamepad.buttons[local].pressed;
-              }
-              offset += ctrl.gamepad.buttons.length;
-            }
-          }
-        }
-        return false;
-      },
-
-      spawnGhost(asset) {
-        const rig = this.el;
-        const rigPos = rig.object3D.position;
-        const rigRot = rig.object3D.rotation;
-
-        // 5m ahead along the rig's forward direction (negative Z in local space)
-        const angle  = rigRot.y;
-        const x      = rigPos.x - Math.sin(angle) * this.PLACE_DIST;
-        const z      = rigPos.z - Math.cos(angle) * this.PLACE_DIST;
-
-        // Y comes from asset position string (e.g. "0 1 -3" → 1)
-        const assetY = asset.position
-          ? parseFloat(asset.position.split(' ')[1]) || 0
-          : 0;
-
-        const ghost = document.createElement('a-entity');
-        ghost.setAttribute('gltf-model', asset.url);
-        ghost.setAttribute('position', `${x} ${assetY} ${z}`);
-        ghost.setAttribute('rotation', asset.rotation || '0 0 0');
-        ghost.setAttribute('scale',    asset.scale    || '1 1 1');
-
-        // Semi-transparent green tint via a-frame material override
-        ghost.setAttribute('material', 'opacity: 0.45; transparent: true; color: #00ff88');
-
-        // Tag so we can find it later
-        ghost.setAttribute('id', 'ghost-entity');
-        ghost.setAttribute('data-ghost', 'true');
-
-        this.el.sceneEl.appendChild(ghost);
-        this.ghostEl = ghost;
-
-        // Update ghost position each tick to follow rig
-        this._tracking = true;
-      },
-
-      releaseGhost() {
-        if (!this.ghostEl) return;
-        const ghost = this.ghostEl;
-
-        // Remove ghost tag and restore full opacity
-        ghost.removeAttribute('data-ghost');
-        ghost.setAttribute('material', 'opacity: 1; transparent: false');
-
-        this.ghostEl   = null;
-        this._tracking = false;
-      },
-
-      tick() {
-        if (!this.system) {
-          this.system = this.el.sceneEl.systems['tracked-controls']
-                     || this.el.sceneEl.systems['tracked-controls-webxr']
-                     || null;
-        }
-
-        // Keep ghost position updated while tracking
-        if (this._tracking && this.ghostEl) {
-          const rig    = this.el;
-          const rigPos = rig.object3D.position;
-          const rigRot = rig.object3D.rotation;
-          const angle  = rigRot.y;
-          const x      = rigPos.x - Math.sin(angle) * this.PLACE_DIST;
-          const z      = rigPos.z - Math.cos(angle) * this.PLACE_DIST;
-
-          // Keep Y from asset definition
-          const currentY = this.ghostEl.object3D.position.y;
-          this.ghostEl.object3D.position.set(x, currentY, z);
-        }
-
-        // Right stick click: flat button index 7
-        const btnDown = this.getFlatButton(7);
-        if (btnDown && !this.btnWasDown) {
-          if (!this.ghostEl) {
-            // Get selected asset from asset-selector on same entity
-            const selector = this.el.components['asset-selector'];
-            if (selector && selector.selected) {
-              this.spawnGhost(selector.selected);
-            }
-          } else {
-            // Release ghost into the world
-            this.releaseGhost();
-          }
-        }
-        this.btnWasDown = btnDown;
-      }
-    });
-
     /* ── Load fixed scene objects from assets.json ── */
     document.addEventListener('DOMContentLoaded', () => {
       const scene = document.querySelector('a-scene');
@@ -524,7 +404,6 @@
     movement-controls="controls: gamepad; speed: 0.15;"
     vertical-controls
     asset-selector
-    asset-placer
     position="0 0 5">
 
     <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false" look-controls></a-camera>
