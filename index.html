@@ -183,10 +183,10 @@
         // Status bar: bottom of view
         this.barMesh.position.set(0, -0.55, -1.5);
 
-        // Load asset list
+        // Load asset list — prepend a "None" option
         fetch('assets.json')
           .then(r => r.json())
-          .then(list => { this.assets = list; })
+          .then(list => { this.assets = [{ name: 'None' }, ...list]; })
           .catch(err => console.error('asset-selector: failed to load assets.json', err));
       },
 
@@ -254,8 +254,13 @@
             this.panelOpen = false;
             this.panelMesh.visible = false;
             this.el.setAttribute('movement-controls', 'enabled', true);
-            this.drawStatusBar();
-            this.barMesh.visible = true;
+            if (this.selected.name === 'None') {
+              this.selected = null;
+              this.barMesh.visible = false;
+            } else {
+              this.drawStatusBar();
+              this.barMesh.visible = true;
+            }
           }
         }
         this.btnWasDown = btnDown;
