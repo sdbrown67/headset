@@ -92,7 +92,41 @@
       }
     });
 
-    /* ── Vertical controls ── */
+    /* ── XR event debug ── */
+    AFRAME.registerComponent('xr-event-debug', {
+      init() {
+        this.indicator = document.getElementById('xr-event-box');
+        this.timeout   = null;
+
+        const flash = (label) => {
+          console.log('XR event:', label);
+          if (this.indicator) this.indicator.setAttribute('color', '#ff00ff');
+          clearTimeout(this.timeout);
+          this.timeout = setTimeout(() => {
+            if (this.indicator) this.indicator.setAttribute('color', '#333333');
+          }, 500);
+        };
+
+        // Listen on the scene for all controller events
+        const scene = this.el.sceneEl;
+        const events = [
+          'selectstart','selectend',
+          'squeezestart','squeezeend',
+          'gripdown','gripup',
+          'thumbstickdown','thumbstickup',
+          'abuttondown','abuttonup',
+          'bbuttondown','bbuttonup',
+          'xbuttondown','xbuttonup',
+          'ybuttondown','ybuttonup',
+          'triggerdown','triggerup',
+        ];
+        events.forEach(evt => {
+          scene.addEventListener(evt, (e) => flash(evt));
+        });
+      }
+    });
+
+
     AFRAME.registerComponent('vertical-controls', {
       schema: {
         speed:    { type: 'number', default: 0.05 },
@@ -525,9 +559,13 @@
     vertical-controls
     asset-selector
     asset-placer
+    xr-event-debug
     position="0 0 5">
 
     <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false" look-controls></a-camera>
+
+    <!-- XR event indicator: turns magenta when any controller event fires -->
+    <a-box id="xr-event-box" position="0 2.5 -1.5" width="0.5" height="0.5" depth="0.1" color="#333333"></a-box>
 
     <!-- AXIS DEBUG BARS + BUTTON INDICATORS -->
     <a-entity axis-bars position="-1.05 1.6 -1.5">
