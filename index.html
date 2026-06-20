@@ -42,9 +42,9 @@
       init() {
         this.system = null;
         this.bars = [];
-        for (let i = 0; i < 8; i++) {
-          this.bars.push(document.getElementById('bar' + i));
-        }
+        this.btns = [];
+        for (let i = 0; i < 8; i++) this.bars.push(document.getElementById('bar' + i));
+        for (let i = 0; i < 8; i++) this.btns.push(document.getElementById('btn' + i));
       },
       tick() {
         if (!this.system) {
@@ -52,41 +52,40 @@
                      || this.el.sceneEl.systems['tracked-controls-webxr']
                      || null;
         }
-        const axes = [0, 0, 0, 0, 0, 0, 0, 0];
+        const axes = [0,0,0,0,0,0,0,0];
+        const btns = [0,0,0,0,0,0,0,0];
+
         if (this.system && this.system.controllers) {
-          let offset = 0;
+          let axOff = 0, btnOff = 0;
           this.system.controllers.forEach(ctrl => {
-            if (ctrl.gamepad && ctrl.gamepad.axes) {
-              Array.from(ctrl.gamepad.axes).forEach((v, i) => {
-                if (offset + i < 8) axes[offset + i] = v;
-              });
-              offset += ctrl.gamepad.axes.length;
+            if (!ctrl.gamepad) return;
+            if (ctrl.gamepad.axes) {
+              Array.from(ctrl.gamepad.axes).forEach((v,i) => { if (axOff+i<8) axes[axOff+i]=v; });
+              axOff += ctrl.gamepad.axes.length;
+            }
+            if (ctrl.gamepad.buttons) {
+              Array.from(ctrl.gamepad.buttons).forEach((b,i) => { if (btnOff+i<8) btns[btnOff+i]=b.pressed?1:0; });
+              btnOff += ctrl.gamepad.buttons.length;
             }
           });
         }
-        if (axes.every(v => v === 0)) {
-          let offset = 0;
-          Array.from(navigator.getGamepads ? navigator.getGamepads() : []).forEach(gp => {
-            if (!gp) return;
-            Array.from(gp.axes).forEach((v, i) => {
-              if (offset + i < 8) axes[offset + i] = v;
-            });
-            offset += gp.axes.length;
-          });
-        }
-        axes.forEach((v, i) => {
-          const bar = this.bars[i];
-          if (!bar) return;
-          const scale = Math.abs(v);
-          const sign  = v >= 0 ? 1 : -1;
+
+        axes.forEach((v,i) => {
+          const bar = this.bars[i]; if (!bar) return;
+          const scale = Math.abs(v), sign = v>=0?1:-1;
           bar.object3D.scale.x = Math.max(0.02, scale);
           bar.object3D.position.x = this.baseX[i] + sign * scale * 0.15;
-          bar.setAttribute('color', scale < 0.05 ? '#888888' : (sign > 0 ? '#00ffff' : '#ff4444'));
+          bar.setAttribute('color', scale < 0.05 ? '#888888' : (sign>0 ? '#00ffff' : '#ff4444'));
+        });
+
+        btns.forEach((v,i) => {
+          const btn = this.btns[i]; if (!btn) return;
+          btn.setAttribute('color', v ? '#ffff00' : '#333333');
         });
       },
       play() {
-        this.baseX = [0, 0, 0, 0, 0, 0, 0, 0];
-        for (let i = 0; i < 8; i++) {
+        this.baseX = [0,0,0,0,0,0,0,0];
+        for (let i=0; i<8; i++) {
           const bar = this.bars[i];
           if (bar) this.baseX[i] = bar.object3D.position.x;
         }
@@ -393,8 +392,9 @@
 
     <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false" look-controls></a-camera>
 
-    <!-- AXIS DEBUG BARS (commented out, kept for future debugging)
+    <!-- AXIS DEBUG BARS + BUTTON INDICATORS -->
     <a-entity axis-bars position="-1.05 1.6 -1.5">
+      <!-- Track boxes -->
       <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="0.00 0 0"></a-box>
       <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="0.32 0 0"></a-box>
       <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="0.64 0 0"></a-box>
@@ -403,6 +403,7 @@
       <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="1.60 0 0"></a-box>
       <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="1.92 0 0"></a-box>
       <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="2.24 0 0"></a-box>
+      <!-- Fill bars -->
       <a-box id="bar0" width="0.30" height="0.06" depth="0.01" color="#888888" position="0.00 0 0.005"></a-box>
       <a-box id="bar1" width="0.30" height="0.06" depth="0.01" color="#888888" position="0.32 0 0.005"></a-box>
       <a-box id="bar2" width="0.30" height="0.06" depth="0.01" color="#888888" position="0.64 0 0.005"></a-box>
@@ -411,8 +412,16 @@
       <a-box id="bar5" width="0.30" height="0.06" depth="0.01" color="#888888" position="1.60 0 0.005"></a-box>
       <a-box id="bar6" width="0.30" height="0.06" depth="0.01" color="#888888" position="1.92 0 0.005"></a-box>
       <a-box id="bar7" width="0.30" height="0.06" depth="0.01" color="#888888" position="2.24 0 0.005"></a-box>
+      <!-- Button indicators (yellow when pressed) -->
+      <a-box id="btn0" width="0.22" height="0.06" depth="0.01" color="#333333" position="0.00 -0.12 0.005"></a-box>
+      <a-box id="btn1" width="0.22" height="0.06" depth="0.01" color="#333333" position="0.32 -0.12 0.005"></a-box>
+      <a-box id="btn2" width="0.22" height="0.06" depth="0.01" color="#333333" position="0.64 -0.12 0.005"></a-box>
+      <a-box id="btn3" width="0.22" height="0.06" depth="0.01" color="#333333" position="0.96 -0.12 0.005"></a-box>
+      <a-box id="btn4" width="0.22" height="0.06" depth="0.01" color="#333333" position="1.28 -0.12 0.005"></a-box>
+      <a-box id="btn5" width="0.22" height="0.06" depth="0.01" color="#333333" position="1.60 -0.12 0.005"></a-box>
+      <a-box id="btn6" width="0.22" height="0.06" depth="0.01" color="#333333" position="1.92 -0.12 0.005"></a-box>
+      <a-box id="btn7" width="0.22" height="0.06" depth="0.01" color="#333333" position="2.24 -0.12 0.005"></a-box>
     </a-entity>
-    -->
 
     <!-- DIRECTION INDICATOR -->
     <a-entity id="indicator" position="0 0.02 0">
