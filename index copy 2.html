@@ -191,7 +191,7 @@
             this.barMesh.visible = false;
           } else {
             this.selected = picked;
-            this.drawStatusBar(null);
+            this.drawStatusBar();
             this.barMesh.visible = true;
           }
         }
@@ -272,7 +272,7 @@
         this.panelTex.needsUpdate = true;
       },
 
-      drawStatusBar(mode) {
+      drawStatusBar() {
         const ctx = this.barCtx, W = 1024, H = 128;
         const label = this.selected
           ? (this.selected.name || this.selected.url.split('/').pop().replace(/\.[^.]+$/, ''))
@@ -284,45 +284,23 @@
         ctx.font = 'bold 56px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        const modeTag = mode ? `  [${mode}]` : '';
-        // Mode tag colour: orange for ROTATE, blue otherwise
-        if (mode === 'ROTATE') {
-          ctx.fillText('▶  ' + label, W / 2 - 120, H / 2);
-          ctx.fillStyle = '#ff8800';
-          ctx.fillText('[ROTATE]', W / 2 + 220, H / 2);
-        } else if (mode === 'MOVE') {
-          ctx.fillText('▶  ' + label, W / 2 - 100, H / 2);
-          ctx.fillStyle = '#00ff88';
-          ctx.fillText('[MOVE]', W / 2 + 240, H / 2);
-        } else {
-          ctx.fillText('▶  ' + label, W / 2, H / 2);
-        }
+        ctx.fillText('▶  ' + label, W / 2, H / 2);
         this.barTex.needsUpdate = true;
       }
     });
 
     /* ── Asset placer ──
      *  Right stick click → spawn ghost / release ghost into world
-     *  X button          → toggle rotate mode (only while ghost active)
-     *
-     *  Move mode:   left stick moves rig, ghost tracks 5m ahead
-     *  Rotate mode: movement suppressed, left stick X = Y-axis spin,
-     *               left stick Y = X-axis tilt
+     *  Uses oculus-touch-controls thumbstickdown on #right-ctrl entity.
      */
     AFRAME.registerComponent('asset-placer', {
       init() {
-        this.ghostEl      = null;
-        this.tracking     = false;
-        this.rotateMode   = false;
-        this.PLACE_DIST   = 5;
-        this.ROT_SPEED    = 1.5;   // degrees per frame at full deflection
-        this.DEADZONE     = 0.2;
-        this.system       = null;
+        this.ghostEl    = null;
+        this.tracking   = false;
+        this.PLACE_DIST = 5;
 
         this.onRightThumbstickDown = this.onRightThumbstickDown.bind(this);
-        this.onToggleRotate        = this.onToggleRotate.bind(this);
-        this.el.sceneEl.addEventListener('asset-placer-right-click',    this.onRightThumbstickDown);
-        this.el.sceneEl.addEventListener('asset-placer-toggle-rotate',  this.onToggleRotate);
+        this.el.sceneEl.addEventListener('asset-placer-right-click', this.onRightThumbstickDown);
       },
 
       onRightThumbstickDown() {
@@ -336,30 +314,13 @@
         }
       },
 
-      onToggleRotate() {
-        // Only active while ghost exists
-        if (!this.ghostEl) return;
-        this.rotateMode = !this.rotateMode;
-        if (this.rotateMode) {
-          this.el.setAttribute('movement-controls', 'enabled', false);
-        } else {
-          this.el.setAttribute('movement-controls', 'enabled', true);
-        }
-        // Refresh status bar to show new mode
-        const selector = this.el.components['asset-selector'];
-        if (selector) selector.drawStatusBar(this.rotateMode ? 'ROTATE' : 'MOVE');
-      },
-
       spawnGhost(asset) {
-        const rig    = this.el;
-        const pos    = rig.object3D.position;
-        const angle  = rig.object3D.rotation.y;
-        const x      = pos.x - Math.sin(angle) * this.PLACE_DIST;
-        const z      = pos.z - Math.cos(angle) * this.PLACE_DIST;
+        const rig   = this.el;
+        const pos   = rig.object3D.position;
+        const angle = rig.object3D.rotation.y;
+        const x     = pos.x - Math.sin(angle) * this.PLACE_DIST;
+        const z     = pos.z - Math.cos(angle) * this.PLACE_DIST;
         const assetY = asset.position ? parseFloat(asset.position.split(' ')[1]) || 0 : 0;
-
-        // Parse asset rotation for initial ghost rotation
-        const rotParts = (asset.rotation || '0 0 0').split(' ').map(Number);
 
         const ghost = document.createElement('a-entity');
         ghost.setAttribute('gltf-model', asset.url);
@@ -368,13 +329,17 @@
         ghost.setAttribute('scale',      asset.scale    || '1 1 1');
         ghost.setAttribute('id',         'ghost-entity');
 
+        // Once the model loads, make all its meshes semi-transparent blue-green
         ghost.addEventListener('model-loaded', () => {
           ghost.object3D.traverse(node => {
             if (!node.isMesh) return;
+            // Clone material so we don't affect the original
             if (Array.isArray(node.material)) {
               node.material = node.material.map(m => {
                 const c = m.clone();
-                c.transparent = true; c.opacity = 0.4; c.color.set(0x44ddaa);
+                c.transparent = true;
+                c.opacity = 0.4;
+                c.color.set(0x44ddaa);
                 return c;
               });
             } else {
@@ -387,23 +352,21 @@
         });
 
         this.el.sceneEl.appendChild(ghost);
-        this.ghostEl    = ghost;
-        this.tracking   = true;
-        this.rotateMode = false;
-
-        // Show MOVE mode in status bar
-        const selector = this.el.components['asset-selector'];
-        if (selector) selector.drawStatusBar('MOVE');
+        this.ghostEl = ghost;
+        this.tracking = true;
       },
 
       releaseGhost() {
         if (!this.ghostEl) return;
+        // Restore full opacity by traversing meshes
         this.ghostEl.object3D.traverse(node => {
           if (!node.isMesh) return;
           if (Array.isArray(node.material)) {
             node.material = node.material.map(m => {
               const c = m.clone();
-              c.transparent = false; c.opacity = 1.0; c.color.set(0xffffff);
+              c.transparent = false;
+              c.opacity = 1.0;
+              c.color.set(0xffffff);
               return c;
             });
           } else {
@@ -413,64 +376,19 @@
             node.material.color.set(0xffffff);
           }
         });
-
-        // Restore movement if we were in rotate mode
-        if (this.rotateMode) {
-          this.el.setAttribute('movement-controls', 'enabled', true);
-        }
-
-        this.ghostEl    = null;
-        this.tracking   = false;
-        this.rotateMode = false;
-
-        // Restore normal status bar (no mode tag)
-        const selector = this.el.components['asset-selector'];
-        if (selector) selector.drawStatusBar(null);
+        this.ghostEl = null;
+        this.tracking = false;
       },
 
       tick() {
-        if (!this.system) {
-          this.system = this.el.sceneEl.systems['tracked-controls']
-                     || this.el.sceneEl.systems['tracked-controls-webxr']
-                     || null;
-        }
         if (!this.tracking || !this.ghostEl) return;
-
-        if (this.rotateMode) {
-          // Left stick: flat axis 2=X, flat axis 3=Y
-          const axX = this.getFlatAxis(2);
-          const axY = this.getFlatAxis(3);
-          if (Math.abs(axX) > this.DEADZONE) {
-            this.ghostEl.object3D.rotation.y += THREE.MathUtils.degToRad(axX * this.ROT_SPEED);
-          }
-          if (Math.abs(axY) > this.DEADZONE) {
-            this.ghostEl.object3D.rotation.x += THREE.MathUtils.degToRad(axY * this.ROT_SPEED);
-          }
-        } else {
-          // Move mode: track 5m ahead of rig
-          const rig   = this.el;
-          const pos   = rig.object3D.position;
-          const angle = rig.object3D.rotation.y;
-          const x     = pos.x - Math.sin(angle) * this.PLACE_DIST;
-          const z     = pos.z - Math.cos(angle) * this.PLACE_DIST;
-          const y     = this.ghostEl.object3D.position.y;
-          this.ghostEl.object3D.position.set(x, y, z);
-        }
-      },
-
-      getFlatAxis(targetIndex) {
-        if (!this.system || !this.system.controllers) return 0;
-        let offset = 0;
-        for (const ctrl of this.system.controllers) {
-          if (ctrl.gamepad && ctrl.gamepad.axes) {
-            const local = targetIndex - offset;
-            if (local >= 0 && local < ctrl.gamepad.axes.length) {
-              return ctrl.gamepad.axes[local];
-            }
-            offset += ctrl.gamepad.axes.length;
-          }
-        }
-        return 0;
+        const rig   = this.el;
+        const pos   = rig.object3D.position;
+        const angle = rig.object3D.rotation.y;
+        const x     = pos.x - Math.sin(angle) * this.PLACE_DIST;
+        const z     = pos.z - Math.cos(angle) * this.PLACE_DIST;
+        const y     = this.ghostEl.object3D.position.y;
+        this.ghostEl.object3D.position.set(x, y, z);
       }
     });
 
@@ -479,9 +397,6 @@
       init() {
         this.el.addEventListener('thumbstickdown', () => {
           this.el.sceneEl.emit('asset-selector-left-click');
-        });
-        this.el.addEventListener('xbuttondown', () => {
-          this.el.sceneEl.emit('asset-placer-toggle-rotate');
         });
       }
     });
