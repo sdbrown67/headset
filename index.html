@@ -44,7 +44,7 @@
         this.bars = [];
         this.btns = [];
         for (let i = 0; i < 8; i++) this.bars.push(document.getElementById('bar' + i));
-        for (let i = 0; i < 8; i++) this.btns.push(document.getElementById('btn' + i));
+        for (let i = 0; i < 16; i++) this.btns.push(document.getElementById('btn' + i));
       },
       tick() {
         if (!this.system) {
@@ -53,7 +53,7 @@
                      || null;
         }
         const axes = [0,0,0,0,0,0,0,0];
-        const btns = [0,0,0,0,0,0,0,0];
+        const btns = new Array(16).fill(0);
 
         if (this.system && this.system.controllers) {
           let axOff = 0, btnOff = 0;
@@ -64,7 +64,7 @@
               axOff += ctrl.gamepad.axes.length;
             }
             if (ctrl.gamepad.buttons) {
-              Array.from(ctrl.gamepad.buttons).forEach((b,i) => { if (btnOff+i<8) btns[btnOff+i]=b.pressed?1:0; });
+              Array.from(ctrl.gamepad.buttons).forEach((b,i) => { if (btnOff+i<16) btns[btnOff+i]=b.pressed?1:0; });
               btnOff += ctrl.gamepad.buttons.length;
             }
           });
@@ -555,6 +555,15 @@
       <a-box id="btn5" width="0.22" height="0.06" depth="0.01" color="#333333" position="1.60 -0.12 0.005"></a-box>
       <a-box id="btn6" width="0.22" height="0.06" depth="0.01" color="#333333" position="1.92 -0.12 0.005"></a-box>
       <a-box id="btn7" width="0.22" height="0.06" depth="0.01" color="#333333" position="2.24 -0.12 0.005"></a-box>
+      <!-- Button indicators row 2 (btn8-15) -->
+      <a-box id="btn8"  width="0.22" height="0.06" depth="0.01" color="#333333" position="0.00 -0.22 0.005"></a-box>
+      <a-box id="btn9"  width="0.22" height="0.06" depth="0.01" color="#333333" position="0.32 -0.22 0.005"></a-box>
+      <a-box id="btn10" width="0.22" height="0.06" depth="0.01" color="#333333" position="0.64 -0.22 0.005"></a-box>
+      <a-box id="btn11" width="0.22" height="0.06" depth="0.01" color="#333333" position="0.96 -0.22 0.005"></a-box>
+      <a-box id="btn12" width="0.22" height="0.06" depth="0.01" color="#333333" position="1.28 -0.22 0.005"></a-box>
+      <a-box id="btn13" width="0.22" height="0.06" depth="0.01" color="#333333" position="1.60 -0.22 0.005"></a-box>
+      <a-box id="btn14" width="0.22" height="0.06" depth="0.01" color="#333333" position="1.92 -0.22 0.005"></a-box>
+      <a-box id="btn15" width="0.22" height="0.06" depth="0.01" color="#333333" position="2.24 -0.22 0.005"></a-box>
     </a-entity>
 
     <!-- DIRECTION INDICATOR -->
