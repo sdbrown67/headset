@@ -217,6 +217,22 @@
         return 0;
       },
 
+      getFlatButton(targetIndex) {
+        if (this.system && this.system.controllers) {
+          let offset = 0;
+          for (const ctrl of this.system.controllers) {
+            if (ctrl.gamepad && ctrl.gamepad.buttons) {
+              const local = targetIndex - offset;
+              if (local >= 0 && local < ctrl.gamepad.buttons.length) {
+                return ctrl.gamepad.buttons[local].pressed;
+              }
+              offset += ctrl.gamepad.buttons.length;
+            }
+          }
+        }
+        return false;
+      },
+
       tick() {
         if (!this.system) {
           this.system = this.el.sceneEl.systems['tracked-controls']
@@ -225,20 +241,15 @@
         }
         if (!this.assets.length) return;
 
-        const gp = this.getLeftGamepad();
-        if (!gp) return;
-
-        // ── Left stick click: button 4 in xr-standard ──
-        const btnDown = gp.buttons[4] && gp.buttons[4].pressed;
+        // ── Left stick click: flat button index 3 ──
+        const btnDown = this.getFlatButton(3);
         if (btnDown && !this.btnWasDown) {
           if (!this.panelOpen) {
-            // Open panel — suppress movement
             this.panelOpen = true;
             this.panelMesh.visible = true;
             this.el.setAttribute('movement-controls', 'enabled', false);
             this.drawPanel();
           } else {
-            // Confirm selection and close — restore movement
             this.selected = this.assets[this.highlighted];
             this.panelOpen = false;
             this.panelMesh.visible = false;
@@ -249,9 +260,9 @@
         }
         this.btnWasDown = btnDown;
 
-        // ── Left stick Y scroll — axis index 1 in flat layout (left controller first) ──
+        // ── Left stick Y scroll: flat axis index 3 ──
         if (this.panelOpen) {
-          const axisY = this.getFlatAxis(1);
+          const axisY = this.getFlatAxis(3);
           const DEADZONE = 0.3;
           if (Math.abs(axisY) > DEADZONE) {
             this.scrollAccum += axisY * 0.05;
@@ -392,9 +403,8 @@
 
     <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false" look-controls></a-camera>
 
-    <!-- AXIS DEBUG BARS + BUTTON INDICATORS -->
+    <!-- AXIS DEBUG BARS + BUTTON INDICATORS (commented out, kept for future debugging)
     <a-entity axis-bars position="-1.05 1.6 -1.5">
-      <!-- Track boxes -->
       <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="0.00 0 0"></a-box>
       <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="0.32 0 0"></a-box>
       <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="0.64 0 0"></a-box>
@@ -403,7 +413,6 @@
       <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="1.60 0 0"></a-box>
       <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="1.92 0 0"></a-box>
       <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="2.24 0 0"></a-box>
-      <!-- Fill bars -->
       <a-box id="bar0" width="0.30" height="0.06" depth="0.01" color="#888888" position="0.00 0 0.005"></a-box>
       <a-box id="bar1" width="0.30" height="0.06" depth="0.01" color="#888888" position="0.32 0 0.005"></a-box>
       <a-box id="bar2" width="0.30" height="0.06" depth="0.01" color="#888888" position="0.64 0 0.005"></a-box>
@@ -412,7 +421,6 @@
       <a-box id="bar5" width="0.30" height="0.06" depth="0.01" color="#888888" position="1.60 0 0.005"></a-box>
       <a-box id="bar6" width="0.30" height="0.06" depth="0.01" color="#888888" position="1.92 0 0.005"></a-box>
       <a-box id="bar7" width="0.30" height="0.06" depth="0.01" color="#888888" position="2.24 0 0.005"></a-box>
-      <!-- Button indicators (yellow when pressed) -->
       <a-box id="btn0" width="0.22" height="0.06" depth="0.01" color="#333333" position="0.00 -0.12 0.005"></a-box>
       <a-box id="btn1" width="0.22" height="0.06" depth="0.01" color="#333333" position="0.32 -0.12 0.005"></a-box>
       <a-box id="btn2" width="0.22" height="0.06" depth="0.01" color="#333333" position="0.64 -0.12 0.005"></a-box>
@@ -422,6 +430,7 @@
       <a-box id="btn6" width="0.22" height="0.06" depth="0.01" color="#333333" position="1.92 -0.12 0.005"></a-box>
       <a-box id="btn7" width="0.22" height="0.06" depth="0.01" color="#333333" position="2.24 -0.12 0.005"></a-box>
     </a-entity>
+    -->
 
     <!-- DIRECTION INDICATOR -->
     <a-entity id="indicator" position="0 0.02 0">
