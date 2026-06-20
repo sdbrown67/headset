@@ -52,10 +52,7 @@
                      || this.el.sceneEl.systems['tracked-controls-webxr']
                      || null;
         }
-
         const axes = [0, 0, 0, 0, 0, 0, 0, 0];
-
-        // XR controllers
         if (this.system && this.system.controllers) {
           let offset = 0;
           this.system.controllers.forEach(ctrl => {
@@ -67,8 +64,6 @@
             }
           });
         }
-
-        // Fallback: navigator.getGamepads
         if (axes.every(v => v === 0)) {
           let offset = 0;
           Array.from(navigator.getGamepads ? navigator.getGamepads() : []).forEach(gp => {
@@ -79,7 +74,6 @@
             offset += gp.axes.length;
           });
         }
-
         axes.forEach((v, i) => {
           const bar = this.bars[i];
           if (!bar) return;
@@ -90,7 +84,6 @@
           bar.setAttribute('color', scale < 0.05 ? '#888888' : (sign > 0 ? '#00ffff' : '#ff4444'));
         });
       },
-      // Store original bar X positions after DOM ready
       play() {
         this.baseX = [0, 0, 0, 0, 0, 0, 0, 0];
         for (let i = 0; i < 8; i++) {
@@ -115,14 +108,11 @@
                      || this.el.sceneEl.systems['tracked-controls-webxr']
                      || null;
         }
-
         let axisY = 0;
-
         if (this.system && this.system.controllers) {
           let offset = 0;
           for (const ctrl of this.system.controllers) {
             if (ctrl.gamepad && ctrl.gamepad.axes) {
-              // axis index 7 = right joystick Y (confirmed via debug bars)
               const localIdx = 7 - offset;
               if (localIdx >= 0 && localIdx < ctrl.gamepad.axes.length) {
                 axisY = ctrl.gamepad.axes[localIdx];
@@ -131,19 +121,227 @@
             }
           }
         }
-
         if (Math.abs(axisY) < this.data.deadzone) return;
         this.el.object3D.position.y -= axisY * this.data.speed;
       }
     });
 
-    /* ── Load scene from JSON ── */
+    /* ── Asset selector ──
+     *
+     *  Left stick click (button index 4 on left controller in xr-standard)
+     *    → toggle selector panel open/closed
+     *    → while open: confirm/select highlighted item
+     *
+     *  Left stick Y (axis 1 on left controller)
+     *    → scroll list while panel is open (movement suppressed)
+     *
+     *  State bar: hidden when nothing selected,
+     *             appears at bottom of view showing selected asset name.
+     *
+     *  Canvas W/H:
+     *    selector panel  1024 x 768
+     *    status bar      1024 x 128
+     */
+    AFRAME.registerComponent('asset-selector', {
+      init() {
+        this.system       = null;
+        this.assets       = [];        // full list loaded from assets.json
+        this.highlighted  = 0;         // index in assets[]
+        this.selected     = null;      // selected asset object or null
+        this.panelOpen    = false;
+        this.btnWasDown   = false;     // debounce left stick click
+        this.scrollAccum  = 0;         // accumulated axis for scroll steps
+
+        // ── Selector panel (hidden until opened) ──
+        this.panelCanvas  = document.createElement('canvas');
+        this.panelCanvas.width  = 1024;
+        this.panelCanvas.height = 768;
+        this.panelCtx     = this.panelCanvas.getContext('2d');
+        this.panelTex     = new THREE.CanvasTexture(this.panelCanvas);
+        const panelMat    = new THREE.MeshBasicMaterial({ map: this.panelTex, transparent: true, side: THREE.DoubleSide });
+        const panelGeo    = new THREE.PlaneGeometry(1.2, 0.9);
+        this.panelMesh    = new THREE.Mesh(panelGeo, panelMat);
+        this.panelMesh.visible = false;
+
+        // ── Status bar (hidden until something selected) ──
+        this.barCanvas    = document.createElement('canvas');
+        this.barCanvas.width  = 1024;
+        this.barCanvas.height = 128;
+        this.barCtx       = this.barCanvas.getContext('2d');
+        this.barTex       = new THREE.CanvasTexture(this.barCanvas);
+        const barMat      = new THREE.MeshBasicMaterial({ map: this.barTex, transparent: true, side: THREE.DoubleSide });
+        const barGeo      = new THREE.PlaneGeometry(1.2, 0.15);
+        this.barMesh      = new THREE.Mesh(barGeo, barMat);
+        this.barMesh.visible = false;
+
+        // Attach both to camera so they are screen-fixed
+        const cam = document.getElementById('camera');
+        cam.object3D.add(this.panelMesh);
+        cam.object3D.add(this.barMesh);
+
+        // Panel: centred in view
+        this.panelMesh.position.set(0, 0, -1.5);
+        // Status bar: bottom of view
+        this.barMesh.position.set(0, -0.55, -1.5);
+
+        // Load asset list
+        fetch('assets.json')
+          .then(r => r.json())
+          .then(list => { this.assets = list; })
+          .catch(err => console.error('asset-selector: failed to load assets.json', err));
+      },
+
+      // Returns the left controller gamepad or null
+      getLeftGamepad() {
+        if (this.system && this.system.controllers) {
+          for (const ctrl of this.system.controllers) {
+            if (ctrl.handedness === 'left' && ctrl.gamepad) return ctrl.gamepad;
+          }
+        }
+        return null;
+      },
+
+      tick() {
+        if (!this.system) {
+          this.system = this.el.sceneEl.systems['tracked-controls']
+                     || this.el.sceneEl.systems['tracked-controls-webxr']
+                     || null;
+        }
+        if (!this.assets.length) return;
+
+        const gp = this.getLeftGamepad();
+        if (!gp) return;
+
+        // ── Left stick click: button 4 in xr-standard ──
+        const btnDown = gp.buttons[4] && gp.buttons[4].pressed;
+        if (btnDown && !this.btnWasDown) {
+          if (!this.panelOpen) {
+            // Open panel
+            this.panelOpen = true;
+            this.panelMesh.visible = true;
+            this.drawPanel();
+          } else {
+            // Confirm selection and close
+            this.selected = this.assets[this.highlighted];
+            this.panelOpen = false;
+            this.panelMesh.visible = false;
+            this.drawStatusBar();
+            this.barMesh.visible = true;
+          }
+        }
+        this.btnWasDown = btnDown;
+
+        // ── Left stick Y scroll (axis 1) — only while panel open ──
+        if (this.panelOpen) {
+          const axisY = gp.axes[1] || 0;
+          const DEADZONE = 0.3;
+          if (Math.abs(axisY) > DEADZONE) {
+            this.scrollAccum += axisY * 0.05;
+            const steps = Math.trunc(this.scrollAccum);
+            if (steps !== 0) {
+              this.highlighted = Math.max(0,
+                Math.min(this.assets.length - 1, this.highlighted + steps));
+              this.scrollAccum -= steps;
+              this.drawPanel();
+            }
+          } else {
+            this.scrollAccum = 0;
+          }
+        }
+      },
+
+      drawPanel() {
+        const ctx    = this.panelCtx;
+        const W      = this.panelCanvas.width;
+        const H      = this.panelCanvas.height;
+        const ROW_H  = 80;
+        const VISIBLE = Math.floor(H / ROW_H);   // rows that fit
+        const PAD    = 20;
+
+        // Background
+        ctx.fillStyle = 'rgba(0,0,0,0.85)';
+        ctx.fillRect(0, 0, W, H);
+
+        // Title
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 36px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Select Asset', W / 2, 44);
+
+        // Scroll window: keep highlighted centred
+        const half   = Math.floor(VISIBLE / 2);
+        const start  = Math.max(0, Math.min(this.highlighted - half,
+                                            this.assets.length - VISIBLE));
+
+        for (let i = 0; i < VISIBLE; i++) {
+          const idx = start + i;
+          if (idx >= this.assets.length) break;
+          const asset  = this.assets[idx];
+          const y      = 80 + i * ROW_H;
+          const isHigh = idx === this.highlighted;
+
+          // Row background
+          ctx.fillStyle = isHigh ? '#005588' : 'transparent';
+          ctx.fillRect(0, y, W, ROW_H);
+
+          // Highlight marker
+          if (isHigh) {
+            ctx.fillStyle = '#00aaff';
+            ctx.fillRect(0, y, 8, ROW_H);
+          }
+
+          // Asset name (use url filename without path/extension as label)
+          const label = asset.name || asset.url.split('/').pop().replace(/\.[^.]+$/, '');
+          ctx.fillStyle = isHigh ? '#ffffff' : '#aaaaaa';
+          ctx.font = isHigh ? 'bold 40px Arial' : '38px Arial';
+          ctx.textAlign = 'left';
+          ctx.fillText(label, PAD + 16, y + ROW_H * 0.65);
+        }
+
+        // Scroll indicator
+        if (this.assets.length > VISIBLE) {
+          const trackH = H - 80;
+          const thumbH = Math.max(40, trackH * (VISIBLE / this.assets.length));
+          const thumbY = 80 + (trackH - thumbH) * (start / (this.assets.length - VISIBLE));
+          ctx.fillStyle = '#444444';
+          ctx.fillRect(W - 12, 80, 8, trackH);
+          ctx.fillStyle = '#00aaff';
+          ctx.fillRect(W - 12, thumbY, 8, thumbH);
+        }
+
+        this.panelTex.needsUpdate = true;
+      },
+
+      drawStatusBar() {
+        const ctx  = this.barCtx;
+        const W    = this.barCanvas.width;
+        const H    = this.barCanvas.height;
+        const label = this.selected
+          ? (this.selected.name || this.selected.url.split('/').pop().replace(/\.[^.]+$/, ''))
+          : '';
+
+        ctx.clearRect(0, 0, W, H);
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.fillStyle = '#00aaff';
+        ctx.font = 'bold 56px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('▶  ' + label, W / 2, H / 2);
+
+        this.barTex.needsUpdate = true;
+      }
+    });
+
+    /* ── Load fixed scene objects from assets.json ── */
     document.addEventListener('DOMContentLoaded', () => {
       const scene = document.querySelector('a-scene');
-      fetch('scene.json')
+      fetch('assets.json')
         .then(r => r.json())
         .then(objects => {
           objects.forEach(obj => {
+            if (!obj.fixed) return;
             const el = document.createElement('a-entity');
             el.setAttribute('gltf-model', obj.url);
             el.setAttribute('position', obj.position);
@@ -152,7 +350,7 @@
             scene.appendChild(el);
           });
         })
-        .catch(err => console.error('scene.json failed:', err));
+        .catch(err => console.error('assets.json failed:', err));
     });
 
   </script>
@@ -171,6 +369,7 @@
   <a-entity id="rig"
     movement-controls="controls: gamepad; speed: 0.15;"
     vertical-controls
+    asset-selector
     position="0 0 5">
 
     <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false" look-controls></a-camera>
