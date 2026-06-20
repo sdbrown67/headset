@@ -92,8 +92,8 @@
     /* ── Vertical controls (right stick Y, flat axis index 7) ── */
     AFRAME.registerComponent('vertical-controls', {
       schema: {
-        speed:    { type: 'number', default: 0.05 },
-        deadzone: { type: 'number', default: 0.2 }
+        speed:    { type: 'number', default: 0.02 },
+        deadzone: { type: 'number', default: 0.5 }
       },
       init() {
         this.system = null;
@@ -327,8 +327,30 @@
         ghost.setAttribute('position',   `${x} ${assetY} ${z}`);
         ghost.setAttribute('rotation',   asset.rotation || '0 0 0');
         ghost.setAttribute('scale',      asset.scale    || '1 1 1');
-        ghost.setAttribute('material',   'opacity: 0.45; transparent: true; color: #00ff88');
         ghost.setAttribute('id',         'ghost-entity');
+
+        // Once the model loads, make all its meshes semi-transparent blue-green
+        ghost.addEventListener('model-loaded', () => {
+          ghost.object3D.traverse(node => {
+            if (!node.isMesh) return;
+            // Clone material so we don't affect the original
+            if (Array.isArray(node.material)) {
+              node.material = node.material.map(m => {
+                const c = m.clone();
+                c.transparent = true;
+                c.opacity = 0.4;
+                c.color.set(0x44ddaa);
+                return c;
+              });
+            } else {
+              node.material = node.material.clone();
+              node.material.transparent = true;
+              node.material.opacity = 0.4;
+              node.material.color.set(0x44ddaa);
+            }
+          });
+        });
+
         this.el.sceneEl.appendChild(ghost);
         this.ghostEl = ghost;
         this.tracking = true;
@@ -336,7 +358,24 @@
 
       releaseGhost() {
         if (!this.ghostEl) return;
-        this.ghostEl.removeAttribute('material');
+        // Restore full opacity by traversing meshes
+        this.ghostEl.object3D.traverse(node => {
+          if (!node.isMesh) return;
+          if (Array.isArray(node.material)) {
+            node.material = node.material.map(m => {
+              const c = m.clone();
+              c.transparent = false;
+              c.opacity = 1.0;
+              c.color.set(0xffffff);
+              return c;
+            });
+          } else {
+            node.material = node.material.clone();
+            node.material.transparent = false;
+            node.material.opacity = 1.0;
+            node.material.color.set(0xffffff);
+          }
+        });
         this.ghostEl = null;
         this.tracking = false;
       },
