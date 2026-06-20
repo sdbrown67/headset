@@ -99,6 +99,10 @@
         this.system = null;
       },
       tick() {
+        // Yield to asset-placer when in rotate mode (it uses right stick Y to lift ghost)
+        const placer = this.el.components['asset-placer'];
+        if (placer && placer.rotateMode) return;
+
         if (!this.system) {
           this.system = this.el.sceneEl.systems['tracked-controls']
                      || this.el.sceneEl.systems['tracked-controls-webxr']
@@ -437,7 +441,7 @@
         if (!this.tracking || !this.ghostEl) return;
 
         if (this.rotateMode) {
-          // Left stick: flat axis 2=X, flat axis 3=Y
+          // Left stick X/Y → rotate ghost
           const axX = this.getFlatAxis(2);
           const axY = this.getFlatAxis(3);
           if (Math.abs(axX) > this.DEADZONE) {
@@ -445,6 +449,11 @@
           }
           if (Math.abs(axY) > this.DEADZONE) {
             this.ghostEl.object3D.rotation.x += THREE.MathUtils.degToRad(axY * this.ROT_SPEED);
+          }
+          // Right stick Y (flat axis 7) → lift / lower ghost
+          const rightY = this.getFlatAxis(7);
+          if (Math.abs(rightY) > this.DEADZONE) {
+            this.ghostEl.object3D.position.y -= rightY * 0.03;
           }
         } else {
           // Move mode: track 5m ahead of rig
