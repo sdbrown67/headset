@@ -37,7 +37,59 @@
       }
     });
 
-    /* ── Vertical controls ── */
+    /* ── Axis debug bars ── */
+    AFRAME.registerComponent('axis-bars', {
+      init() {
+        this.system = null;
+        this.bars = [];
+        this.btns = [];
+        for (let i = 0; i < 8; i++) this.bars.push(document.getElementById('bar' + i));
+        for (let i = 0; i < 16; i++) this.btns.push(document.getElementById('btn' + i));
+      },
+      tick() {
+        if (!this.system) {
+          this.system = this.el.sceneEl.systems['tracked-controls']
+                     || this.el.sceneEl.systems['tracked-controls-webxr']
+                     || null;
+        }
+        const axes = [0,0,0,0,0,0,0,0];
+        const btns = new Array(16).fill(0);
+        if (this.system && this.system.controllers) {
+          let axOff = 0, btnOff = 0;
+          this.system.controllers.forEach(ctrl => {
+            if (!ctrl.gamepad) return;
+            if (ctrl.gamepad.axes) {
+              Array.from(ctrl.gamepad.axes).forEach((v,i) => { if (axOff+i<8) axes[axOff+i]=v; });
+              axOff += ctrl.gamepad.axes.length;
+            }
+            if (ctrl.gamepad.buttons) {
+              Array.from(ctrl.gamepad.buttons).forEach((b,i) => { if (btnOff+i<16) btns[btnOff+i]=b.pressed?1:0; });
+              btnOff += ctrl.gamepad.buttons.length;
+            }
+          });
+        }
+        axes.forEach((v,i) => {
+          const bar = this.bars[i]; if (!bar) return;
+          const scale = Math.abs(v), sign = v>=0?1:-1;
+          bar.object3D.scale.x = Math.max(0.02, scale);
+          bar.object3D.position.x = this.baseX[i] + sign * scale * 0.15;
+          bar.setAttribute('color', scale < 0.05 ? '#888888' : (sign>0 ? '#00ffff' : '#ff4444'));
+        });
+        btns.forEach((v,i) => {
+          const btn = this.btns[i]; if (!btn) return;
+          btn.setAttribute('color', v ? '#ffff00' : '#333333');
+        });
+      },
+      play() {
+        this.baseX = [0,0,0,0,0,0,0,0];
+        for (let i=0; i<8; i++) {
+          const bar = this.bars[i];
+          if (bar) this.baseX[i] = bar.object3D.position.x;
+        }
+      }
+    });
+
+    /* ── Vertical controls (right stick Y, flat axis index 7) ── */
     AFRAME.registerComponent('vertical-controls', {
       schema: {
         speed:    { type: 'number', default: 0.02 },
@@ -47,6 +99,7 @@
         this.system = null;
       },
       tick() {
+        // Yield to asset-placer when in rotate mode (it uses right stick Y to lift ghost)
         const placer = this.el.components['asset-placer'];
         if (placer && placer.rotateMode) return;
 
@@ -73,45 +126,54 @@
       }
     });
 
-    /* ── Asset selector ── */
+    /* ── Asset selector ──
+     *  Left stick click  → toggle panel / confirm selection
+     *  Left stick Y      → scroll list (movement suppressed while open)
+     *  Uses oculus-touch-controls events on #left-ctrl entity.
+     */
     AFRAME.registerComponent('asset-selector', {
       init() {
-        this.system       = null;
-        this.assets       = [];
+        this.system      = null;
+        this.assets      = [];
         this.highlighted = 0;
         this.selected    = null;
         this.panelOpen   = false;
         this.scrollAccum = 0;
 
-        this.panelCanvas = document.createElement('canvas');
-        this.panelCanvas.width = 1024;
+        // ── Selector panel ──
+        this.panelCanvas        = document.createElement('canvas');
+        this.panelCanvas.width  = 1024;
         this.panelCanvas.height = 768;
-        this.panelCtx = this.panelCanvas.getContext('2d');
-        this.panelTex = new THREE.CanvasTexture(this.panelCanvas);
+        this.panelCtx           = this.panelCanvas.getContext('2d');
+        this.panelTex           = new THREE.CanvasTexture(this.panelCanvas);
         const panelMat = new THREE.MeshBasicMaterial({ map: this.panelTex, transparent: true, side: THREE.DoubleSide });
         this.panelMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.9), panelMat);
         this.panelMesh.visible = false;
 
-        this.barCanvas = document.createElement('canvas');
-        this.barCanvas.width = 1024;
+        // ── Status bar ──
+        this.barCanvas        = document.createElement('canvas');
+        this.barCanvas.width  = 1024;
         this.barCanvas.height = 128;
-        this.barCtx = this.barCanvas.getContext('2d');
-        this.barTex = new THREE.CanvasTexture(this.barCanvas);
+        this.barCtx           = this.barCanvas.getContext('2d');
+        this.barTex           = new THREE.CanvasTexture(this.barCanvas);
         const barMat = new THREE.MeshBasicMaterial({ map: this.barTex, transparent: true, side: THREE.DoubleSide });
         this.barMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.15), barMat);
         this.barMesh.visible = false;
 
+        // Attach to camera (screen-fixed)
         const cam = document.getElementById('camera');
         cam.object3D.add(this.panelMesh);
         cam.object3D.add(this.barMesh);
         this.panelMesh.position.set(0, 0, -1.5);
         this.barMesh.position.set(0, -0.55, -1.5);
 
+        // Load assets
         fetch('assets.json')
           .then(r => r.json())
           .then(list => { this.assets = [{ name: 'None' }, ...list]; })
           .catch(err => console.error('asset-selector:', err));
 
+        // Left stick click via oculus-touch-controls event
         this.onLeftThumbstickDown = this.onLeftThumbstickDown.bind(this);
         this.el.sceneEl.addEventListener('asset-selector-left-click', this.onLeftThumbstickDown);
       },
@@ -145,6 +207,8 @@
                      || this.el.sceneEl.systems['tracked-controls-webxr']
                      || null;
         }
+
+        // Left stick Y scroll while panel open (flat axis index 3)
         if (!this.panelOpen) return;
         if (!this.system || !this.system.controllers) return;
 
@@ -183,14 +247,14 @@
         ctx.textAlign = 'center';
         ctx.fillText('Select Asset', W / 2, 44);
 
-        const half = Math.floor(VISIBLE / 2);
+        const half  = Math.floor(VISIBLE / 2);
         const start = Math.max(0, Math.min(this.highlighted - half, this.assets.length - VISIBLE));
 
         for (let i = 0; i < VISIBLE; i++) {
           const idx = start + i;
           if (idx >= this.assets.length) break;
-          const asset = this.assets[idx];
-          const y = 80 + i * ROW_H;
+          const asset  = this.assets[idx];
+          const y      = 80 + i * ROW_H;
           const isHigh = idx === this.highlighted;
           ctx.fillStyle = isHigh ? '#005588' : 'transparent';
           ctx.fillRect(0, y, W, ROW_H);
@@ -214,7 +278,9 @@
 
       drawStatusBar(mode) {
         const ctx = this.barCtx, W = 1024, H = 128;
-        const label = this.selected ? (this.selected.name || this.selected.url.split('/').pop().replace(/\.[^.]+$/, '')) : '';
+        const label = this.selected
+          ? (this.selected.name || this.selected.url.split('/').pop().replace(/\.[^.]+$/, ''))
+          : '';
         ctx.clearRect(0, 0, W, H);
         ctx.fillStyle = 'rgba(0,0,0,0.7)';
         ctx.fillRect(0, 0, W, H);
@@ -222,6 +288,8 @@
         ctx.font = 'bold 56px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        const modeTag = mode ? `  [${mode}]` : '';
+        // Mode tag colour: orange for ROTATE, blue otherwise
         if (mode === 'ROTATE') {
           ctx.fillText('▶  ' + label, W / 2 - 120, H / 2);
           ctx.fillStyle = '#ff8800';
@@ -237,21 +305,28 @@
       }
     });
 
-    /* ── Asset placer ── */
+    /* ── Asset placer ──
+     *  Right stick click → spawn ghost / release ghost into world
+     *  X button          → toggle rotate mode (only while ghost active)
+     *
+     *  Move mode:   left stick moves rig, ghost tracks 5m ahead
+     *  Rotate mode: movement suppressed, left stick X = Y-axis spin,
+     *               left stick Y = X-axis tilt
+     */
     AFRAME.registerComponent('asset-placer', {
       init() {
-        this.ghostEl = null;
-        this.tracking = false;
-        this.rotateMode = false;
-        this.PLACE_DIST = 5;
-        this.ROT_SPEED = 1.5;
-        this.DEADZONE = 0.2;
-        this.system = null;
+        this.ghostEl      = null;
+        this.tracking     = false;
+        this.rotateMode   = false;
+        this.PLACE_DIST   = 5;
+        this.ROT_SPEED    = 1.5;   // degrees per frame at full deflection
+        this.DEADZONE     = 0.2;
+        this.system       = null;
 
         this.onRightThumbstickDown = this.onRightThumbstickDown.bind(this);
-        this.onToggleRotate = this.onToggleRotate.bind(this);
-        this.el.sceneEl.addEventListener('asset-placer-right-click', this.onRightThumbstickDown);
-        this.el.sceneEl.addEventListener('asset-placer-toggle-rotate', this.onToggleRotate);
+        this.onToggleRotate        = this.onToggleRotate.bind(this);
+        this.el.sceneEl.addEventListener('asset-placer-right-click',    this.onRightThumbstickDown);
+        this.el.sceneEl.addEventListener('asset-placer-toggle-rotate',  this.onToggleRotate);
       },
 
       onRightThumbstickDown() {
@@ -266,6 +341,7 @@
       },
 
       onToggleRotate() {
+        // Only active while ghost exists
         if (!this.ghostEl) return;
         this.rotateMode = !this.rotateMode;
         if (this.rotateMode) {
@@ -273,39 +349,53 @@
         } else {
           this.el.setAttribute('movement-controls', 'enabled', true);
         }
+        // Refresh status bar to show new mode
         const selector = this.el.components['asset-selector'];
         if (selector) selector.drawStatusBar(this.rotateMode ? 'ROTATE' : 'MOVE');
       },
 
       spawnGhost(asset) {
-        const rig = this.el;
-        const pos = rig.object3D.position;
-        const angle = rig.object3D.rotation.y;
-        const x = pos.x - Math.sin(angle) * this.PLACE_DIST;
-        const z = pos.z - Math.cos(angle) * this.PLACE_DIST;
+        const rig    = this.el;
+        const pos    = rig.object3D.position;
+        const angle  = rig.object3D.rotation.y;
+        const x      = pos.x - Math.sin(angle) * this.PLACE_DIST;
+        const z      = pos.z - Math.cos(angle) * this.PLACE_DIST;
         const assetY = asset.position ? parseFloat(asset.position.split(' ')[1]) || 0 : 0;
+
+        // Parse asset rotation for initial ghost rotation
+        const rotParts = (asset.rotation || '0 0 0').split(' ').map(Number);
 
         const ghost = document.createElement('a-entity');
         ghost.setAttribute('gltf-model', asset.url);
-        ghost.setAttribute('position', `${x} ${assetY} ${z}`);
-        ghost.setAttribute('rotation', asset.rotation || '0 0 0');
-        ghost.setAttribute('scale', asset.scale || '1 1 1');
-        ghost.setAttribute('id', 'ghost-entity');
+        ghost.setAttribute('position',   `${x} ${assetY} ${z}`);
+        ghost.setAttribute('rotation',   asset.rotation || '0 0 0');
+        ghost.setAttribute('scale',      asset.scale    || '1 1 1');
+        ghost.setAttribute('id',         'ghost-entity');
 
         ghost.addEventListener('model-loaded', () => {
           ghost.object3D.traverse(node => {
             if (!node.isMesh) return;
-            node.material = node.material.clone();
-            node.material.transparent = true;
-            node.material.opacity = 0.4;
-            node.material.color.set(0x44ddaa);
+            if (Array.isArray(node.material)) {
+              node.material = node.material.map(m => {
+                const c = m.clone();
+                c.transparent = true; c.opacity = 0.4; c.color.set(0x44ddaa);
+                return c;
+              });
+            } else {
+              node.material = node.material.clone();
+              node.material.transparent = true;
+              node.material.opacity = 0.4;
+              node.material.color.set(0x44ddaa);
+            }
           });
         });
 
         this.el.sceneEl.appendChild(ghost);
-        this.ghostEl = ghost;
-        this.tracking = true;
+        this.ghostEl    = ghost;
+        this.tracking   = true;
         this.rotateMode = false;
+
+        // Show MOVE mode in status bar
         const selector = this.el.components['asset-selector'];
         if (selector) selector.drawStatusBar('MOVE');
       },
@@ -314,19 +404,30 @@
         if (!this.ghostEl) return;
         this.ghostEl.object3D.traverse(node => {
           if (!node.isMesh) return;
-          node.material = node.material.clone();
-          node.material.transparent = false;
-          node.material.opacity = 1.0;
-          node.material.color.set(0xffffff);
+          if (Array.isArray(node.material)) {
+            node.material = node.material.map(m => {
+              const c = m.clone();
+              c.transparent = false; c.opacity = 1.0; c.color.set(0xffffff);
+              return c;
+            });
+          } else {
+            node.material = node.material.clone();
+            node.material.transparent = false;
+            node.material.opacity = 1.0;
+            node.material.color.set(0xffffff);
+          }
         });
 
+        // Restore movement if we were in rotate mode
         if (this.rotateMode) {
           this.el.setAttribute('movement-controls', 'enabled', true);
         }
 
-        this.ghostEl = null;
-        this.tracking = false;
+        this.ghostEl    = null;
+        this.tracking   = false;
         this.rotateMode = false;
+
+        // Restore normal status bar (no mode tag)
         const selector = this.el.components['asset-selector'];
         if (selector) selector.drawStatusBar(null);
       },
@@ -340,6 +441,7 @@
         if (!this.tracking || !this.ghostEl) return;
 
         if (this.rotateMode) {
+          // Left stick X/Y → rotate ghost
           const axX = this.getFlatAxis(2);
           const axY = this.getFlatAxis(3);
           if (Math.abs(axX) > this.DEADZONE) {
@@ -348,29 +450,32 @@
           if (Math.abs(axY) > this.DEADZONE) {
             this.ghostEl.object3D.rotation.x += THREE.MathUtils.degToRad(axY * this.ROT_SPEED);
           }
+          // Right stick Y (flat axis 7) → lift / lower ghost
           const rightY = this.getFlatAxis(7);
           if (Math.abs(rightY) > this.DEADZONE) {
             this.ghostEl.object3D.position.y -= rightY * 0.03;
           }
-
-          // Scaling logic now restricted to Rotate Mode
-          const rightX = this.getFlatAxis(6);
-          if (Math.abs(rightX) > this.DEADZONE) {
-            const s = this.ghostEl.object3D.scale;
-            const delta = 1 + (-rightX * 0.01);
-            const next = s.x * delta;
-            if (next > 0.01 && next < 50) {
-              s.set(next, next, next);
-            }
-          }
         } else {
-          const rig = this.el;
-          const pos = rig.object3D.position;
+          // Move mode: track 5m ahead of rig
+          const rig   = this.el;
+          const pos   = rig.object3D.position;
           const angle = rig.object3D.rotation.y;
-          const x = pos.x - Math.sin(angle) * this.PLACE_DIST;
-          const z = pos.z - Math.cos(angle) * this.PLACE_DIST;
-          const y = this.ghostEl.object3D.position.y;
+          const x     = pos.x - Math.sin(angle) * this.PLACE_DIST;
+          const z     = pos.z - Math.cos(angle) * this.PLACE_DIST;
+          const y     = this.ghostEl.object3D.position.y;
           this.ghostEl.object3D.position.set(x, y, z);
+        }
+
+        // Right stick X (flat axis 6) → uniform scale, works in both modes
+        const rightX = this.getFlatAxis(6);
+        if (Math.abs(rightX) > this.DEADZONE) {
+          const s     = this.ghostEl.object3D.scale;
+          const delta = 1 + (-rightX * 0.01);  // left = smaller, right = larger
+          const next  = s.x * delta;
+          // Clamp to sane range
+          if (next > 0.01 && next < 50) {
+            s.set(next, next, next);
+          }
         }
       },
 
@@ -390,6 +495,7 @@
       }
     });
 
+    /* ── Left controller listener ── */
     AFRAME.registerComponent('left-ctrl-listener', {
       init() {
         this.el.addEventListener('thumbstickdown', () => {
@@ -401,6 +507,7 @@
       }
     });
 
+    /* ── Right controller listener ── */
     AFRAME.registerComponent('right-ctrl-listener', {
       init() {
         this.el.addEventListener('thumbstickdown', () => {
@@ -409,6 +516,7 @@
       }
     });
 
+    /* ── Load fixed scene objects from assets.json ── */
     document.addEventListener('DOMContentLoaded', () => {
       const scene = document.querySelector('a-scene');
       fetch('assets.json')
@@ -418,9 +526,9 @@
             if (!obj.fixed) return;
             const el = document.createElement('a-entity');
             el.setAttribute('gltf-model', obj.url);
-            el.setAttribute('position', obj.position);
-            el.setAttribute('rotation', obj.rotation);
-            el.setAttribute('scale', obj.scale);
+            el.setAttribute('position',   obj.position);
+            el.setAttribute('rotation',   obj.rotation);
+            el.setAttribute('scale',      obj.scale);
             scene.appendChild(el);
           });
         })
@@ -432,9 +540,14 @@
 
 <body>
 <a-scene background="color: #111">
+
+  <!-- FLOOR GRID -->
   <a-entity floor-grid></a-entity>
+
+  <!-- FLOOR -->
   <a-plane position="0 -0.01 0" rotation="-90 0 0" width="200" height="200" color="#222"></a-plane>
 
+  <!-- PLAYER -->
   <a-entity id="rig"
     movement-controls="controls: gamepad; speed: 0.15;"
     vertical-controls
@@ -444,25 +557,74 @@
 
     <a-camera id="camera" position="0 1.6 0" wasd-controls-enabled="false" look-controls></a-camera>
 
-    <a-entity id="left-ctrl" oculus-touch-controls="hand: left" left-ctrl-listener></a-entity>
-    <a-entity id="right-ctrl" oculus-touch-controls="hand: right" right-ctrl-listener></a-entity>
+    <!-- CONTROLLERS — children of rig so they move with the player -->
+    <a-entity id="left-ctrl"
+      oculus-touch-controls="hand: left"
+      left-ctrl-listener>
+    </a-entity>
+    <a-entity id="right-ctrl"
+      oculus-touch-controls="hand: right"
+      right-ctrl-listener>
+    </a-entity>
 
+    <!-- AXIS DEBUG BARS + BUTTON INDICATORS (commented out, kept for future debugging)
+    <a-entity axis-bars position="-1.05 1.6 -1.5">
+      <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="0.00 0 0"></a-box>
+      <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="0.32 0 0"></a-box>
+      <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="0.64 0 0"></a-box>
+      <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="0.96 0 0"></a-box>
+      <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="1.28 0 0"></a-box>
+      <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="1.60 0 0"></a-box>
+      <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="1.92 0 0"></a-box>
+      <a-box width="0.30" height="0.06" depth="0.005" color="#444444" position="2.24 0 0"></a-box>
+      <a-box id="bar0" width="0.30" height="0.06" depth="0.01" color="#888888" position="0.00 0 0.005"></a-box>
+      <a-box id="bar1" width="0.30" height="0.06" depth="0.01" color="#888888" position="0.32 0 0.005"></a-box>
+      <a-box id="bar2" width="0.30" height="0.06" depth="0.01" color="#888888" position="0.64 0 0.005"></a-box>
+      <a-box id="bar3" width="0.30" height="0.06" depth="0.01" color="#888888" position="0.96 0 0.005"></a-box>
+      <a-box id="bar4" width="0.30" height="0.06" depth="0.01" color="#888888" position="1.28 0 0.005"></a-box>
+      <a-box id="bar5" width="0.30" height="0.06" depth="0.01" color="#888888" position="1.60 0 0.005"></a-box>
+      <a-box id="bar6" width="0.30" height="0.06" depth="0.01" color="#888888" position="1.92 0 0.005"></a-box>
+      <a-box id="bar7" width="0.30" height="0.06" depth="0.01" color="#888888" position="2.24 0 0.005"></a-box>
+      <a-box id="btn0"  width="0.22" height="0.06" depth="0.01" color="#333333" position="0.00 -0.12 0.005"></a-box>
+      <a-box id="btn1"  width="0.22" height="0.06" depth="0.01" color="#333333" position="0.32 -0.12 0.005"></a-box>
+      <a-box id="btn2"  width="0.22" height="0.06" depth="0.01" color="#333333" position="0.64 -0.12 0.005"></a-box>
+      <a-box id="btn3"  width="0.22" height="0.06" depth="0.01" color="#333333" position="0.96 -0.12 0.005"></a-box>
+      <a-box id="btn4"  width="0.22" height="0.06" depth="0.01" color="#333333" position="1.28 -0.12 0.005"></a-box>
+      <a-box id="btn5"  width="0.22" height="0.06" depth="0.01" color="#333333" position="1.60 -0.12 0.005"></a-box>
+      <a-box id="btn6"  width="0.22" height="0.06" depth="0.01" color="#333333" position="1.92 -0.12 0.005"></a-box>
+      <a-box id="btn7"  width="0.22" height="0.06" depth="0.01" color="#333333" position="2.24 -0.12 0.005"></a-box>
+      <a-box id="btn8"  width="0.22" height="0.06" depth="0.01" color="#333333" position="0.00 -0.22 0.005"></a-box>
+      <a-box id="btn9"  width="0.22" height="0.06" depth="0.01" color="#333333" position="0.32 -0.22 0.005"></a-box>
+      <a-box id="btn10" width="0.22" height="0.06" depth="0.01" color="#333333" position="0.64 -0.22 0.005"></a-box>
+      <a-box id="btn11" width="0.22" height="0.06" depth="0.01" color="#333333" position="0.96 -0.22 0.005"></a-box>
+      <a-box id="btn12" width="0.22" height="0.06" depth="0.01" color="#333333" position="1.28 -0.22 0.005"></a-box>
+      <a-box id="btn13" width="0.22" height="0.06" depth="0.01" color="#333333" position="1.60 -0.22 0.005"></a-box>
+      <a-box id="btn14" width="0.22" height="0.06" depth="0.01" color="#333333" position="1.92 -0.22 0.005"></a-box>
+      <a-box id="btn15" width="0.22" height="0.06" depth="0.01" color="#333333" position="2.24 -0.22 0.005"></a-box>
+    </a-entity>
+    -->
+
+    <!-- DIRECTION INDICATOR -->
     <a-entity id="indicator" position="0 0.02 0">
       <a-entity rotation="0 180 0">
         <a-torus radius="1.5" radius-tubular="0.005" segments-tubular="64" color="#00ff00" rotation="90 0 0"></a-torus>
-        <a-box width="0.005" height="0.005" depth="2.6" color="#00ff00" position="-0.47 0 0.175" rotation="0 21 1.5"></a-box>
-        <a-box width="0.005" height="0.005" depth="2.6" color="#00ff00" position=" 0.47 0 0.175" rotation="0 -21 1.5"></a-box>
+        <a-box width="0.005" height="0.005" depth="2.6" color="#00ff00" position="-0.47 0  0.175" rotation="0  21 1.5"></a-box>
+        <a-box width="0.005" height="0.005" depth="2.6" color="#00ff00" position=" 0.47 0  0.175" rotation="0 -21 1.5"></a-box>
       </a-entity>
     </a-entity>
+
   </a-entity>
 
+  <!-- COMPASS LABELS -->
   <a-entity compass-label="value: N" position="0 5 -256"></a-entity>
-  <a-entity compass-label="value: S" position="0 5 256" rotation="0 180 0"></a-entity>
+  <a-entity compass-label="value: S" position="0 5  256" rotation="0 180 0"></a-entity>
   <a-entity compass-label="value: E" position=" 256 5 0" rotation="0 -90 0"></a-entity>
-  <a-entity compass-label="value: W" position="-256 5 0" rotation="0 90 0"></a-entity>
+  <a-entity compass-label="value: W" position="-256 5 0" rotation="0  90 0"></a-entity>
 
-  <a-light type="ambient" intensity="0.8"></a-light>
+  <!-- LIGHTING -->
+  <a-light type="ambient"     intensity="0.8"></a-light>
   <a-light type="directional" intensity="0.8" position="1 3 2"></a-light>
+
 </a-scene>
 </body>
 </html>
