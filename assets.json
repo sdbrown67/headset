@@ -1,16 +1,16 @@
 [
   {
-    "url": "assets/tree.glb",
-    "fixed": true,
-    "position": "0 1 -3",
-    "rotation": "0 45 0",
+    "url": "assets/rock.glb",
+    "fixed": false,
+    "position": "0 0 0",
+    "rotation": "0 0 0",
     "scale": "1 1 1"
   },
   {
-    "url": "assets/rock.glb",
+    "url": "assets/tree.glb",
     "fixed": false,
-    "position": "2 0 -5",
+    "position": "5 0 0",
     "rotation": "0 0 0",
-    "scale": ".1 .1 .1"
+    "scale": "1 1 1"
   }
 ]

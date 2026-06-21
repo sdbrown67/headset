@@ -465,6 +465,18 @@
           const y     = this.ghostEl.object3D.position.y;
           this.ghostEl.object3D.position.set(x, y, z);
         }
+
+        // Right stick X (flat axis 6) → uniform scale, works in both modes
+        const rightX = this.getFlatAxis(6);
+        if (Math.abs(rightX) > this.DEADZONE) {
+          const s     = this.ghostEl.object3D.scale;
+          const delta = 1 + (-rightX * 0.01);  // left = smaller, right = larger
+          const next  = s.x * delta;
+          // Clamp to sane range
+          if (next > 0.01 && next < 50) {
+            s.set(next, next, next);
+          }
+        }
       },
 
       getFlatAxis(targetIndex) {
